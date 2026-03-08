@@ -70,8 +70,14 @@ Examples:
     parser.add_argument(
         "--analysts", 
         type=str,
-        default="warren_buffett,michael_burry,cathie_wood,mordecai,fundamentals_analyst,technical_analyst",
-        help="Comma-separated list of analysts to use"
+        default="mordecai,fundamentals_analyst,technical_analyst",
+        help="Comma-separated list of analysts to use (default: mordecai + fundamentals + technical)"
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=5,
+        help="Analyze only top N positions by value (default: 5, use 0 for all)"
     )
     parser.add_argument(
         "--show-reasoning", 
@@ -101,8 +107,12 @@ Examples:
             tickers_to_analyze = specific_tickers
             portfolio = convert_to_portfolio(positions_raw, account, specific_tickers)
         else:
-            # Analyze all current holdings
-            held_tickers = [p["symbol"] for p in positions_raw if float(p.get("qty", 0)) != 0]
+            # Analyze holdings, optionally limited to top N by market value
+            held = [p for p in positions_raw if float(p.get("qty", 0)) != 0]
+            held.sort(key=lambda p: abs(float(p.get("market_value", 0))), reverse=True)
+            if args.top and args.top > 0:
+                held = held[:args.top]
+            held_tickers = [p["symbol"] for p in held]
             tickers_to_analyze = held_tickers
             portfolio = convert_to_portfolio(positions_raw, account)
         
