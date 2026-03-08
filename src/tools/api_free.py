@@ -253,7 +253,69 @@ def get_financial_metrics(
         yf_ticker = _get_yf_ticker(ticker)
         info = yf_ticker.info or {}
 
-        # Build a single metrics entry from yfinance info (TTM-like)
+        # Pull financial statements for richer metrics
+        try:
+            inc_stmt = yf_ticker.financials  # annual income statement
+            bal_sheet = yf_ticker.balance_sheet  # annual balance sheet
+            cash_flow = yf_ticker.cashflow  # annual cash flow
+        except Exception:
+            inc_stmt = bal_sheet = cash_flow = None
+
+        # Extract statement values (current, previous) for ratio computation
+        revenue_cur, revenue_prev = _extract_statement_value(inc_stmt, "Total Revenue", "Revenue")
+        cogs_cur, _ = _extract_statement_value(inc_stmt, "Cost Of Revenue", "Cost Of Goods Sold")
+        ebit_cur, _ = _extract_statement_value(inc_stmt, "EBIT", "Operating Income")
+        net_income_cur, net_income_prev = _extract_statement_value(inc_stmt, "Net Income", "Net Income Common Stockholders")
+        interest_exp_cur, _ = _extract_statement_value(inc_stmt, "Interest Expense", "Interest Expense Non Operating")
+        operating_income_cur, operating_income_prev = _extract_statement_value(inc_stmt, "Operating Income", "EBIT")
+        ebitda_cur, ebitda_prev = _extract_statement_value(inc_stmt, "EBITDA", "Normalized EBITDA")
+
+        total_assets_cur, _ = _extract_statement_value(bal_sheet, "Total Assets")
+        current_assets_cur, _ = _extract_statement_value(bal_sheet, "Current Assets")
+        current_liab_cur, _ = _extract_statement_value(bal_sheet, "Current Liabilities")
+        inventory_cur, _ = _extract_statement_value(bal_sheet, "Inventory")
+        receivables_cur, _ = _extract_statement_value(bal_sheet, "Accounts Receivable", "Net Receivables")
+        cash_cur, _ = _extract_statement_value(bal_sheet, "Cash And Cash Equivalents", "Cash")
+        total_debt_cur, _ = _extract_statement_value(bal_sheet, "Total Debt", "Long Term Debt")
+        equity_cur, equity_prev = _extract_statement_value(bal_sheet, "Stockholders Equity", "Total Stockholder Equity")
+
+        ocf_cur, _ = _extract_statement_value(cash_flow, "Operating Cash Flow", "Total Cash From Operating Activities")
+        fcf_cur, fcf_prev = _extract_statement_value(cash_flow, "Free Cash Flow")
+
+        # Compute EPS from statements for growth
+        eps_cur = _safe_float(info.get("trailingEps"))
+        shares = _safe_float(info.get("sharesOutstanding"))
+        eps_prev = _safe_div(net_income_prev, shares) if net_income_prev and shares else None
+
+        # Book value growth
+        bv_cur = _safe_float(info.get("bookValue"))
+        bv_prev = _safe_div(equity_prev, shares) if equity_prev and shares else None
+
+        # Compute ratio fields from statements
+        roic = _safe_div(ebit_cur, (total_assets_cur - current_liab_cur)) if total_assets_cur and current_liab_cur else None
+        asset_turnover = _safe_div(revenue_cur, total_assets_cur)
+        inventory_turnover = _safe_div(cogs_cur, inventory_cur)
+        receivables_turnover = _safe_div(revenue_cur, receivables_cur)
+        dso = _safe_div(365.0, receivables_turnover) if receivables_turnover else None
+        dio = _safe_div(365.0, inventory_turnover) if inventory_turnover else None
+        operating_cycle = (dio + dso) if dio is not None and dso is not None else None
+        working_cap = (current_assets_cur - current_liab_cur) if current_assets_cur and current_liab_cur else None
+        working_capital_turnover = _safe_div(revenue_cur, working_cap) if working_cap and working_cap != 0 else None
+        cash_ratio = _safe_div(cash_cur, current_liab_cur)
+        ocf_ratio = _safe_div(ocf_cur, current_liab_cur)
+        debt_to_assets = _safe_div(total_debt_cur, total_assets_cur)
+        interest_coverage = _safe_div(ebit_cur, abs(interest_exp_cur)) if interest_exp_cur and interest_exp_cur != 0 else None
+
+        # Compute growth fields
+        revenue_growth = info.get("revenueGrowth") or _safe_growth(revenue_cur, revenue_prev)
+        earnings_growth = info.get("earningsGrowth") or _safe_growth(net_income_cur, net_income_prev)
+        book_value_growth = _safe_growth(bv_cur, bv_prev)
+        eps_growth = _safe_growth(eps_cur, eps_prev)
+        fcf_growth = _safe_growth(fcf_cur, fcf_prev)
+        oi_growth = _safe_growth(operating_income_cur, operating_income_prev)
+        ebitda_growth = _safe_growth(ebitda_cur, ebitda_prev)
+
+        # Build a single metrics entry from yfinance info + statements
         metric = {
             "ticker": ticker,
             "report_period": end_date,
@@ -273,31 +335,31 @@ def get_financial_metrics(
             "net_margin": info.get("profitMargins"),
             "return_on_equity": info.get("returnOnEquity"),
             "return_on_assets": info.get("returnOnAssets"),
-            "return_on_invested_capital": None,
-            "asset_turnover": None,
-            "inventory_turnover": None,
-            "receivables_turnover": None,
-            "days_sales_outstanding": None,
-            "operating_cycle": None,
-            "working_capital_turnover": None,
+            "return_on_invested_capital": roic,
+            "asset_turnover": asset_turnover,
+            "inventory_turnover": inventory_turnover,
+            "receivables_turnover": receivables_turnover,
+            "days_sales_outstanding": dso,
+            "operating_cycle": operating_cycle,
+            "working_capital_turnover": working_capital_turnover,
             "current_ratio": info.get("currentRatio"),
             "quick_ratio": info.get("quickRatio"),
-            "cash_ratio": None,
-            "operating_cash_flow_ratio": None,
+            "cash_ratio": cash_ratio,
+            "operating_cash_flow_ratio": ocf_ratio,
             "debt_to_equity": info.get("debtToEquity"),
-            "debt_to_assets": None,
-            "interest_coverage": None,
-            "revenue_growth": info.get("revenueGrowth"),
-            "earnings_growth": info.get("earningsGrowth"),
-            "book_value_growth": None,
-            "earnings_per_share_growth": None,
-            "free_cash_flow_growth": None,
-            "operating_income_growth": None,
-            "ebitda_growth": None,
+            "debt_to_assets": debt_to_assets,
+            "interest_coverage": interest_coverage,
+            "revenue_growth": revenue_growth,
+            "earnings_growth": earnings_growth,
+            "book_value_growth": book_value_growth,
+            "earnings_per_share_growth": eps_growth,
+            "free_cash_flow_growth": fcf_growth,
+            "operating_income_growth": oi_growth,
+            "ebitda_growth": ebitda_growth,
             "payout_ratio": info.get("payoutRatio"),
-            "earnings_per_share": info.get("trailingEps"),
-            "book_value_per_share": info.get("bookValue"),
-            "free_cash_flow_per_share": _safe_div(info.get("freeCashflow"), info.get("sharesOutstanding")),
+            "earnings_per_share": eps_cur,
+            "book_value_per_share": bv_cur,
+            "free_cash_flow_per_share": _safe_div(info.get("freeCashflow"), shares),
         }
 
         # Try to enrich with SEC EDGAR for historical periods
@@ -324,6 +386,37 @@ def _safe_div(a, b):
     if a is not None and b is not None and b != 0:
         return a / b
     return None
+
+
+def _safe_growth(current, previous):
+    """Compute percentage growth safely: (current - previous) / abs(previous)."""
+    if current is not None and previous is not None and previous != 0:
+        return (current - previous) / abs(previous)
+    return None
+
+
+def _safe_float(val):
+    """Convert a value to float, returning None if not possible."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _extract_statement_value(df, *row_names):
+    """Extract the most recent value from a yfinance statement DataFrame, trying multiple row names."""
+    if df is None or df.empty:
+        return None, None
+    for name in row_names:
+        if name in df.index:
+            row = df.loc[name]
+            # First column is most recent
+            val = _safe_float(row.iloc[0])
+            prev = _safe_float(row.iloc[1]) if len(row) > 1 else None
+            return val, prev
+    return None, None
 
 
 def _build_historical_metrics(ticker: str, facts: dict, end_date: str, period: str, limit: int) -> list[dict]:
@@ -478,6 +571,13 @@ def search_line_items(
         "repayment_of_debt": ["RepaymentsOfLongTermDebt"],
         "net_income_from_cash_flow": ["NetIncomeLoss"],
         "depreciation_from_cash_flow": ["DepreciationDepletionAndAmortization"],
+        # Additional mappings for completeness
+        "ebit": ["OperatingIncomeLoss"],
+        "income_before_tax": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"],
+        "weighted_average_shares": ["WeightedAverageNumberOfShareOutstandingBasicAndDiluted", "CommonStockSharesOutstanding"],
+        "net_cash_from_operations": ["NetCashProvidedByUsedInOperatingActivities"],
+        "net_cash_from_investing": ["NetCashProvidedByUsedInInvestingActivities"],
+        "net_cash_from_financing": ["NetCashProvidedByUsedInFinancingActivities"],
     }
 
     # Collect report periods from XBRL data
