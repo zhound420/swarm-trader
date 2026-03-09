@@ -29,7 +29,7 @@ from src.utils.progress import progress
 # Target universe
 # ---------------------------------------------------------------------------
 
-MORDECAI_UNIVERSE: dict[str, dict] = {
+UNIVERSE: dict[str, dict] = {
     "ai_infra": {
         "label": "AI Infrastructure",
         "tickers": ["NVDA", "AVGO", "SMCI", "TSM"],
@@ -69,7 +69,7 @@ class MordecaiSignal(BaseModel):
 
 def _get_ticker_info(ticker: str) -> tuple[str | None, dict | None]:
     """Return (category_key, category_dict) for a ticker, or (None, None)."""
-    for cat_key, cat_data in MORDECAI_UNIVERSE.items():
+    for cat_key, cat_data in UNIVERSE.items():
         if ticker in cat_data["tickers"]:
             return cat_key, cat_data
     return None, None
@@ -93,7 +93,7 @@ def _calculate_portfolio_weights(portfolio: dict) -> dict[str, float]:
 def _category_weights(portfolio_weights: dict[str, float]) -> dict[str, float]:
     """Aggregate portfolio weights by Mordecai category."""
     result: dict[str, float] = {}
-    for cat_key, cat_data in MORDECAI_UNIVERSE.items():
+    for cat_key, cat_data in UNIVERSE.items():
         result[cat_key] = sum(portfolio_weights.get(t, 0.0) for t in cat_data["tickers"])
     return result
 
@@ -143,10 +143,10 @@ def mordecai_agent(state: AgentState, agent_id: str = "mordecai_agent"):
         allocation_snapshot = {
             cat: {
                 "current_pct": round(cat_weights.get(cat, 0.0) * 100, 1),
-                "target_pct": round(MORDECAI_UNIVERSE[cat]["target_pct"] * 100, 1),
-                "drift_pct": round((cat_weights.get(cat, 0.0) - MORDECAI_UNIVERSE[cat]["target_pct"]) * 100, 1),
+                "target_pct": round(UNIVERSE[cat]["target_pct"] * 100, 1),
+                "drift_pct": round((cat_weights.get(cat, 0.0) - UNIVERSE[cat]["target_pct"]) * 100, 1),
             }
-            for cat in MORDECAI_UNIVERSE
+            for cat in UNIVERSE
         }
 
         analysis_context = {

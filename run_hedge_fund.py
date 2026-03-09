@@ -5,10 +5,10 @@ Mordecai AI Hedge Fund Runner
 Fetches live Alpaca positions, runs multi-agent analysis, and executes trades with safety rails.
 
 Usage:
-  poetry run python run_mordecai.py                    # Dry run, all holdings
-  poetry run python run_mordecai.py --execute          # Actually trade
-  poetry run python run_mordecai.py --tickers NVDA,AVGO  # Specific tickers only
-  poetry run python run_mordecai.py --telegram         # Telegram-friendly output
+  poetry run python run_analysis.py                    # Dry run, all holdings
+  poetry run python run_analysis.py --execute          # Actually trade
+  poetry run python run_analysis.py --tickers NVDA,AVGO  # Specific tickers only
+  poetry run python run_analysis.py --telegram         # Telegram-friendly output
 """
 
 import argparse
@@ -35,11 +35,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python run_mordecai.py                           # Dry run all holdings
-  python run_mordecai.py --execute                 # Execute trades  
-  python run_mordecai.py --tickers NVDA,AVGO      # Analyze specific tickers
-  python run_mordecai.py --telegram               # Telegram-friendly format
-  python run_mordecai.py --model qwen3.5:cloud    # Use different model
+  python run_analysis.py                           # Dry run all holdings
+  python run_analysis.py --execute                 # Execute trades  
+  python run_analysis.py --tickers NVDA,AVGO      # Analyze specific tickers
+  python run_analysis.py --telegram               # Telegram-friendly format
+  python run_analysis.py --model qwen3.5:cloud    # Use different model
         """
     )
     

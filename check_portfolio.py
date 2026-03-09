@@ -25,13 +25,13 @@ HEADERS = {
     "APCA-API-SECRET-KEY": os.environ.get("ALPACA_API_SECRET", ""),
 }
 
-MORDECAI_UNIVERSE = {
+UNIVERSE = {
     "ai_infra": ["NVDA", "AVGO", "SMCI", "TSM"],
     "leveraged": ["TQQQ", "SOXL", "UPRO"],
     "momentum": ["PLTR", "MSTR", "COIN", "RKLB"],
     "moonshots": ["IONQ", "RGTI", "SOUN", "LUNR"],
 }
-ALL_UNIVERSE = [t for group in MORDECAI_UNIVERSE.values() for t in group]
+ALL_UNIVERSE = [t for group in UNIVERSE.values() for t in group]
 
 
 def api(endpoint):
@@ -66,7 +66,7 @@ def main():
         current_price = float(p["current_price"])
         avg_entry = float(p["avg_entry_price"])
         in_universe = sym in ALL_UNIVERSE
-        category = next((k for k, v in MORDECAI_UNIVERSE.items() if sym in v), "other")
+        category = next((k for k, v in UNIVERSE.items() if sym in v), "other")
 
         pos_data.append({
             "symbol": sym,

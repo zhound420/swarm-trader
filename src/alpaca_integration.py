@@ -34,11 +34,11 @@ _HEADERS = {
     "Content-Type": "application/json",
 }
 
-# Safety rail constants
-MAX_TRADE_PCT = 0.05       # Max 5% of portfolio per trade
-MAX_DAILY_TRADES = 5       # Max 5 trades per run
-MIN_KEEP_PCT = 0.10        # Keep at least 10% of any position when selling
-MIN_CONFIDENCE = 70        # Minimum confidence % to execute a trade
+# Safety rail constants (aggressive paper trading mode)
+MAX_TRADE_PCT = 0.10       # Max 10% of portfolio per trade
+MAX_DAILY_TRADES = 8       # Max 8 trades per run
+MIN_KEEP_PCT = 0.05        # Keep at least 5% of any position when selling
+MIN_CONFIDENCE = 60        # Minimum confidence % to execute a trade
 
 # Track trades placed this session
 _session_trade_count = 0
