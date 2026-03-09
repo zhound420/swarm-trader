@@ -162,6 +162,23 @@ def main():
     }
 
     print(json.dumps(output, indent=2))
+
+    # Auto-log to trade journal
+    if not args.dry_run:
+        try:
+            from trade_journal import append_trades
+            logged = append_trades(output)
+            print(f"📓 Logged {logged} trades to journal", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️ Journal logging failed: {e}", file=sys.stderr)
+
+    # Auto-snapshot performance
+    try:
+        from performance_tracker import take_snapshot
+        take_snapshot()
+    except Exception as e:
+        print(f"⚠️ Performance snapshot failed: {e}", file=sys.stderr)
+
     return 0
 
 

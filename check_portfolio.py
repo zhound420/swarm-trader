@@ -181,5 +181,33 @@ def output_terminal(equity, cash, daily_pl, daily_pl_pct, positions, big_movers,
     print()
 
 
+def run_monitoring():
+    """Run performance snapshot + alert checks after portfolio check."""
+    try:
+        from performance_tracker import take_snapshot
+        take_snapshot()
+    except Exception as e:
+        print(f"⚠️ Performance snapshot failed: {e}", file=sys.stderr)
+
+    try:
+        from trade_alerts import check_concentration, check_cash, check_drawdown, check_trading_frequency, log_alerts, get_portfolio as alerts_get_portfolio
+        account, positions = alerts_get_portfolio()
+        alerts = []
+        if account and positions:
+            alerts.extend(check_concentration(account, positions))
+            alerts.extend(check_cash(account))
+        alerts.extend(check_drawdown())
+        alerts.extend(check_trading_frequency())
+        if alerts:
+            log_alerts(alerts)
+            print("\n🚨 ALERTS:")
+            for a in alerts:
+                print(f"  {a['message']}")
+    except Exception as e:
+        print(f"⚠️ Alert check failed: {e}", file=sys.stderr)
+
+
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    result = main()
+    run_monitoring()
+    sys.exit(result or 0)
