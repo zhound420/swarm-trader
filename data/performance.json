@@ -8,6 +8,33 @@
       "invested": 89999.39,
       "position_count": 20,
       "spy_price": 672.3800048828125
+    },
+    {
+      "date": "2026-03-09",
+      "timestamp": "2026-03-09T06:33:11.567756",
+      "equity": 151947.75,
+      "cash": 77090.82,
+      "invested": 74856.93,
+      "position_count": 19,
+      "spy_price": 666.5700073242188
+    },
+    {
+      "date": "2026-03-10",
+      "timestamp": "2026-03-10T06:32:37.418552",
+      "equity": 155342.21,
+      "cash": 31976.45,
+      "invested": 123365.76,
+      "position_count": 20,
+      "spy_price": 678.3499755859375
+    },
+    {
+      "date": "2026-03-11",
+      "timestamp": "2026-03-11T06:33:27.899011",
+      "equity": 156194.92,
+      "cash": -4486.3,
+      "invested": 160681.22,
+      "position_count": 20,
+      "spy_price": 678.0800170898438
     }
   ],
   "baseline": {
