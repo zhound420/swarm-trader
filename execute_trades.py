@@ -6,9 +6,15 @@ Input: JSON on stdin or --file with format:
 {
   "trades": [
     {"ticker": "NVDA", "action": "buy", "qty": 50, "reasoning": "..."},
-    {"ticker": "XLE", "action": "sell", "qty": 100, "reasoning": "..."}
+    {"ticker": "NVDA", "action": "buy", "qty": 20, "order_type": "bracket", "stop_price": 900, "take_profit": 1050, "reasoning": "..."},
+    {"ticker": "NVDA", "action": "buy", "qty": 10, "order_type": "limit", "limit_price": 920, "reasoning": "..."},
+    {"ticker": "NVDA", "action": "sell", "qty": 10, "order_type": "stop", "stop_price": 880, "reasoning": "stop-loss on existing"},
+    {"ticker": "NVDA", "action": "sell", "qty": 10, "order_type": "oco", "stop_price": 880, "take_profit": 1050, "reasoning": "exit bracket on existing"},
+    {"ticker": "NVDA", "action": "sell", "qty": 10, "order_type": "trailing_stop", "trail_percent": 2.0, "reasoning": "lock in gains"}
   ]
 }
+
+Order types: market (default), limit, bracket, stop, oco, trailing_stop
 
 Usage:
   echo '{"trades":[...]}' | poetry run python execute_trades.py
@@ -52,11 +58,22 @@ def get_positions():
     return {p["symbol"]: p for p in r.json()}
 
 
-def place_order(ticker, action, qty, order_type="market", stop_price=None, take_profit=None, limit_price=None):
-    """Place an order. Supports market, bracket, and limit order types."""
+def place_order(ticker, action, qty, order_type="market", stop_price=None, take_profit=None, limit_price=None, trail_percent=None):
+    """Place an order. Supports market, bracket, limit, stop, oco, and trailing_stop.
+
+    Order types:
+        market          — immediate fill (default)
+        limit           — enter at specific price (requires limit_price)
+        bracket         — entry + stop-loss + take-profit atomic (requires stop_price + take_profit)
+        stop            — standalone stop order on existing position (requires stop_price)
+        oco             — exit-only: stop + take-profit on existing position (requires stop_price + take_profit)
+        trailing_stop   — trailing stop that rises with price (requires trail_percent)
+    """
     side = "buy" if action in ("buy", "cover") else "sell"
 
-    use_bracket = order_type == "bracket" or (stop_price is not None and take_profit is not None)
+    use_bracket = order_type == "bracket" or (
+        stop_price is not None and take_profit is not None and order_type not in ("oco",)
+    )
 
     if use_bracket:
         order = {
@@ -69,6 +86,18 @@ def place_order(ticker, action, qty, order_type="market", stop_price=None, take_
             "stop_loss": {"stop_price": str(round(float(stop_price), 2))},
             "take_profit": {"limit_price": str(round(float(take_profit), 2))},
         }
+    elif order_type == "oco" and stop_price is not None and take_profit is not None:
+        # OCO: exit-only order (stop + take-profit) on existing position — no new entry
+        order = {
+            "symbol": ticker,
+            "qty": str(int(qty)),
+            "side": side,
+            "type": "limit",
+            "time_in_force": "gtc",
+            "order_class": "oco",
+            "stop_loss": {"stop_price": str(round(float(stop_price), 2))},
+            "take_profit": {"limit_price": str(round(float(take_profit), 2))},
+        }
     elif order_type == "limit" and limit_price is not None:
         order = {
             "symbol": ticker,
@@ -77,6 +106,25 @@ def place_order(ticker, action, qty, order_type="market", stop_price=None, take_
             "type": "limit",
             "time_in_force": "day",
             "limit_price": str(round(float(limit_price), 2)),
+        }
+    elif order_type == "stop" and stop_price is not None:
+        # Standalone stop order — use for stop-losses on existing positions
+        order = {
+            "symbol": ticker,
+            "qty": str(int(qty)),
+            "side": side,
+            "type": "stop",
+            "time_in_force": "gtc",
+            "stop_price": str(round(float(stop_price), 2)),
+        }
+    elif order_type == "trailing_stop" and trail_percent is not None:
+        order = {
+            "symbol": ticker,
+            "qty": str(int(qty)),
+            "side": side,
+            "type": "trailing_stop",
+            "time_in_force": "gtc",
+            "trail_percent": str(round(float(trail_percent), 2)),
         }
     else:
         order = {
@@ -90,9 +138,11 @@ def place_order(ticker, action, qty, order_type="market", stop_price=None, take_
     r = requests.post(f"{API_BASE}/orders", headers=HEADERS, json=order, timeout=10)
     if r.status_code in (200, 201):
         data = r.json()
-        result = {"success": True, "order_id": data.get("id"), "status": data.get("status")}
+        result = {"success": True, "order_id": data.get("id"), "status": data.get("status"), "order_type": order_type}
         if use_bracket:
             result["order_class"] = "bracket"
+        elif order_type == "oco":
+            result["order_class"] = "oco"
         return result
     return {"success": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
 
@@ -156,6 +206,7 @@ def main():
         stop_price = trade.get("stop_price")
         take_profit = trade.get("take_profit")
         limit_price = trade.get("limit_price")
+        trail_percent = trade.get("trail_percent")
 
         if action == "hold" or qty <= 0:
             results.append({"ticker": ticker, "action": action, "status": "skipped", "reason": "Hold or zero qty"})
@@ -175,10 +226,12 @@ def main():
                 dry_entry["take_profit"] = take_profit
             if limit_price is not None:
                 dry_entry["limit_price"] = limit_price
+            if trail_percent is not None:
+                dry_entry["trail_percent"] = trail_percent
             results.append(dry_entry)
             executed += 1
         else:
-            result = place_order(ticker, action, qty, order_type=order_type, stop_price=stop_price, take_profit=take_profit, limit_price=limit_price)
+            result = place_order(ticker, action, qty, order_type=order_type, stop_price=stop_price, take_profit=take_profit, limit_price=limit_price, trail_percent=trail_percent)
             status = "executed" if result["success"] else "failed"
             results.append({
                 "ticker": ticker,
