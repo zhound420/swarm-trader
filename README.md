@@ -145,7 +145,24 @@ cd swarm-trader
 poetry install
 
 cp .env.example .env
-# Add your Alpaca keys and LLM provider keys to .env
+```
+
+Edit `.env` with your credentials:
+
+```bash
+# Required — Alpaca paper trading
+ALPACA_API_KEY=your_key_here
+ALPACA_API_SECRET=your_secret_here
+
+# LLM provider (at least one required)
+OPENAI_API_KEY=              # GPT-4, etc.
+ANTHROPIC_API_KEY=           # Claude
+GOOGLE_API_KEY=              # Gemini
+GROQ_API_KEY=                # Groq cloud
+DEEPSEEK_API_KEY=            # DeepSeek
+
+# Optional — paid data (free layer works without this)
+FINANCIAL_DATASETS_API_KEY=
 ```
 
 ### Verify Data Layer
@@ -280,7 +297,37 @@ In day trading mode, **bracket orders are mandatory**. If a trade is submitted w
 
 ---
 
-## Automation
+## Automation with OpenClaw
+
+The system is designed to run fully autonomous via [OpenClaw](https://github.com/openclaw/openclaw) cron jobs. An AI agent (we use "Cassius" running Claude Opus) executes the full pipeline on schedule: scan → gather → analyze → trade → report.
+
+### Prerequisites
+
+1. **OpenClaw installed and running** — `openclaw gateway status` should show healthy
+2. **An agent configured** — e.g., `cassius` with access to the swarm-trader workspace
+3. **Telegram group** (optional) — for trade reports. Replace `-5217663499` with your chat ID
+
+### Agent Setup
+
+If you don't have a trading agent yet:
+
+```bash
+openclaw agents add cassius \
+  --model "anthropic/claude-opus-4-6" \
+  --workspace ~/path/to/swarm-trader
+```
+
+### Pipeline Flow
+
+Each cron job follows this pipeline:
+
+```
+scan_market.py          →  Discover today's movers (dynamic tickers)
+gather_data.py --mode day  →  Fetch 5-min bars, VWAP, RSI, volume for each ticker
+[Agent analyzes]        →  LLM reads data, decides trades with stop/target prices
+execute_trades.py       →  Places bracket orders on Alpaca with safety rails
+[Agent reports]         →  Posts summary to Telegram/Discord
+```
 
 ### Day Trading Schedule (recommended)
 
@@ -288,15 +335,180 @@ In day trading mode, **bracket orders are mandatory**. If a trade is submitted w
 
 | Time (PT) | Job | Purpose |
 |---|---|---|
-| 9:30 AM | `swarm-open` | Market open — fresh entries, aggressive |
-| 11:00 AM | `swarm-midmorning` | Position management, tactical adjustments |
-| 1:00 PM | `swarm-lunch` | Light session, scalps and range plays |
+| 9:00 AM | `swarm-portfolio-check` | Daily P/L report, portfolio health |
+| 9:30 AM | `swarm-open` | Market open — scan + aggressive entries |
+| 11:00 AM | `swarm-midmorning` | Re-scan, tactical adjustments |
+| 1:00 PM | `swarm-lunch` | Light session, range plays |
 | 3:00 PM | `swarm-late` | Final hour push, last major moves |
 | 3:45 PM | `swarm-flatten` | **CRITICAL**: Close risky/short positions before close |
 
-Plus a daily portfolio health check at 9:00 AM.
+### Cron Setup Commands
 
-### Swing Trading Schedule
+Copy-paste these to set up the full day trading schedule. Adjust `--agent`, `--model`, `--to` (Telegram chat ID), and workspace paths for your setup.
+
+**Daily Portfolio Check (9:00 AM, every day):**
+
+```bash
+openclaw cron add --name swarm-portfolio-check \
+  --cron "0 9 * * *" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --session isolated \
+  --agent cassius \
+  --model "anthropic/claude-opus-4-6" \
+  --announce \
+  --channel telegram \
+  --to "YOUR_CHAT_ID" \
+  --message "Daily portfolio health check.
+
+Run: cd ~/path/to/swarm-trader && poetry run python check_portfolio.py
+
+Report: total equity, daily P&L, top positions, any big movers (>5% swing)."
+```
+
+**Market Open (9:30 AM, Mon-Fri):**
+
+```bash
+openclaw cron add --name swarm-open \
+  --cron "30 9 * * 1-5" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --session isolated \
+  --agent cassius \
+  --model "anthropic/claude-opus-4-6" \
+  --announce \
+  --channel telegram \
+  --to "YOUR_CHAT_ID" \
+  --message '🟢 Market open trading session.
+
+1. Scan for opportunities:
+   cd ~/path/to/swarm-trader && TICKERS=$(poetry run python scan_market.py --max 25)
+   Echo the discovered tickers.
+
+2. Gather intraday data:
+   poetry run python gather_data.py --mode day --tickers $TICKERS --output /tmp/cassius-intraday.json
+
+3. Read /tmp/cassius-intraday.json — 5-min bars, VWAP, RSI, volume, key levels.
+
+4. Analyze each ticker: Price vs VWAP, RSI, volume conviction, key levels, why the scanner flagged it.
+
+5. Write trade decisions to /tmp/cassius-trades.json (bracket orders with stop_price and take_profit required).
+
+6. Execute: poetry run python execute_trades.py --file /tmp/cassius-trades.json
+
+7. Post summary: scanner discoveries, trades executed, market regime, key setups.'
+```
+
+**Mid-Morning (11:00 AM, Mon-Fri):**
+
+```bash
+openclaw cron add --name swarm-midmorning \
+  --cron "0 11 * * 1-5" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --session isolated \
+  --agent cassius \
+  --model "anthropic/claude-opus-4-6" \
+  --announce \
+  --channel telegram \
+  --to "YOUR_CHAT_ID" \
+  --message '🔄 Mid-morning check.
+
+1. Re-scan for new movers:
+   cd ~/path/to/swarm-trader && TICKERS=$(poetry run python scan_market.py --max 25)
+
+2. Gather fresh data:
+   poetry run python gather_data.py --mode day --tickers $TICKERS --output /tmp/cassius-midmorning.json
+
+3. Review existing positions — any stops getting hit? Any breakouts?
+
+4. Tactical trades (momentum/mean reversion). Write to /tmp/cassius-midmorning-trades.json and execute.
+
+5. Brief update: market direction, new scanner finds, position adjustments.'
+```
+
+**Lunch (1:00 PM, Mon-Fri):**
+
+```bash
+openclaw cron add --name swarm-lunch \
+  --cron "0 13 * * 1-5" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --session isolated \
+  --agent cassius \
+  --model "anthropic/claude-opus-4-6" \
+  --announce \
+  --channel telegram \
+  --to "YOUR_CHAT_ID" \
+  --message '🍽️ Lunch session.
+
+1. Quick scan:
+   cd ~/path/to/swarm-trader && TICKERS=$(poetry run python scan_market.py --max 20)
+
+2. Gather data:
+   poetry run python gather_data.py --mode day --tickers $TICKERS --output /tmp/cassius-lunch.json
+
+3. Light trading — range plays, quick scalps if setups are clean. Reduce exposure if choppy, add if trending.'
+```
+
+**Late Afternoon (3:00 PM, Mon-Fri):**
+
+```bash
+openclaw cron add --name swarm-late \
+  --cron "0 15 * * 1-5" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --session isolated \
+  --agent cassius \
+  --model "anthropic/claude-opus-4-6" \
+  --announce \
+  --channel telegram \
+  --to "YOUR_CHAT_ID" \
+  --message '⏰ Late afternoon — final hour push.
+
+1. Full scan:
+   cd ~/path/to/swarm-trader && TICKERS=$(poetry run python scan_market.py --max 25)
+
+2. Gather data:
+   poetry run python gather_data.py --mode day --tickers $TICKERS --output /tmp/cassius-late.json
+
+3. Last chance for major position changes. Plan what gets flattened at 3:45 PM vs what holds overnight.'
+```
+
+**End-of-Day Flatten (3:45 PM, Mon-Fri):**
+
+```bash
+openclaw cron add --name swarm-flatten \
+  --cron "45 15 * * 1-5" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --session isolated \
+  --agent cassius \
+  --model "anthropic/claude-opus-4-6" \
+  --announce \
+  --channel telegram \
+  --to "YOUR_CHAT_ID" \
+  --message '🔴 FLATTEN RISKY POSITIONS — 15 minutes to close.
+
+1. Review all open positions:
+   cd ~/path/to/swarm-trader && poetry run python check_portfolio.py
+
+2. Flatten anything speculative, leveraged, or short:
+   - Any short positions (cover by close)
+   - Any positions >10% of portfolio
+   - Any momentum/crypto proxies
+
+3. Execute flattening:
+   poetry run python execute_trades.py --flatten
+
+4. Report: positions flattened, overnight holdings, cash raised, daily P&L.
+
+NO EXCEPTIONS. Risk management > profit.'
+```
+
+### Swing Trading Schedule (alternative)
+
+For longer-term position trading instead of intraday:
 
 | Time (PT) | Job | Purpose |
 |---|---|---|
@@ -304,7 +516,88 @@ Plus a daily portfolio health check at 9:00 AM.
 | 9:00 AM | Portfolio check | Quick P/L report |
 | 4:30 PM | Evening research | Post-close deep analysis |
 
-See [PLAYBOOK.md](./PLAYBOOK.md) for complete cron setup with [OpenClaw](https://github.com/openclaw/openclaw) integration.
+Swing mode uses `gather_data.py --mode swing` (fundamentals, news, insider trades) instead of intraday technicals. See [PLAYBOOK.md](./PLAYBOOK.md) for swing cron setup.
+
+### Managing Crons
+
+```bash
+openclaw cron list                        # See all jobs + next run times
+openclaw cron run swarm-open              # Trigger a job manually (debug)
+openclaw cron disable swarm-flatten       # Pause a job
+openclaw cron enable swarm-flatten        # Resume
+openclaw cron rm <job-id>                 # Delete a job
+openclaw cron runs swarm-open --limit 5   # View recent run history
+```
+
+### Monitoring
+
+Check if the system is healthy:
+
+```bash
+# Are crons running?
+openclaw cron list | grep swarm
+
+# Recent trade activity
+cat data/trade_journal.jsonl | tail -5
+
+# Check for circuit breaker
+poetry run python execute_trades.py --dry-run < /dev/null
+
+# Alpaca account status
+curl -s "https://paper-api.alpaca.markets/v2/account" \
+  -H "APCA-API-KEY-ID: $ALPACA_API_KEY" \
+  -H "APCA-API-SECRET-KEY: $ALPACA_API_SECRET" | python3 -m json.tool
+```
+
+---
+
+## Configuration
+
+### Risk Parameters (`src/config.py`)
+
+All risk parameters are in one place. Adjust to your risk tolerance:
+
+```python
+# Day trading risk params
+MAX_RISK_PER_TRADE = 0.02       # 2% of portfolio risked per trade
+MAX_PORTFOLIO_HEAT = 0.10       # Max 10% of portfolio at risk simultaneously
+MAX_POSITION_SIZE = 0.15        # No single position > 15% of portfolio
+DEFAULT_STOP_PCT = 0.02         # 2% stop loss (auto-applied if agent doesn't specify)
+DEFAULT_TARGET_MULTIPLIER = 2.0 # 2:1 reward-to-risk ratio
+FLATTEN_BY = '15:45'            # Flatten risky positions by 3:45 PM ET
+```
+
+### Safety Rails (`src/alpaca_integration.py`)
+
+```python
+MAX_TRADE_PCT = 0.15    # Max single trade = 15% of portfolio
+MAX_DAILY_TRADES = 20   # Max trades per session
+MIN_CONFIDENCE = 55     # Min confidence % to execute
+MAX_LOSS_PER_DAY = 0.03 # Circuit breaker: stop at 3% daily loss
+```
+
+### Scanner Filters (`scan_market.py`)
+
+```python
+CORE_WATCHLIST = ["NVDA", "AVGO", ...]  # Always-watched tickers
+EXCLUDE = {"TQQQ", "SQQQ", ...}        # Never trade these
+DEFAULT_MIN_PRICE = 10.0                # Skip penny stocks
+DEFAULT_MIN_TRADES = 5000               # Min trade count for "most active"
+DEFAULT_MAX_TICKERS = 25                # Max tickers per scan
+```
+
+### Swing Universe (`src/config.py`)
+
+The swing trading universe is separate from day trading:
+
+```python
+SWING_UNIVERSE = {
+    "ai_infra":       {"tickers": ["NVDA", "AVGO", "SMCI", "TSM"], "target_pct": 0.40},
+    "leveraged_etfs": {"tickers": ["TQQQ", "SOXL", "UPRO"],       "target_pct": 0.25},
+    "momentum":       {"tickers": ["PLTR", "MSTR", "COIN", "RKLB"],"target_pct": 0.20},
+    "moonshots":      {"tickers": ["IONQ", "RGTI", "SOUN", "LUNR"],"target_pct": 0.15},
+}
+```
 
 ---
 
@@ -381,6 +674,21 @@ swarm-trader/
 │       └── ollama_models.json # Local Ollama model catalog
 └── .cache/                    # Disk cache (gitignored)
 ```
+
+---
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `Circuit breaker ACTIVE` | Down 3%+ today | Normal — system protects capital. Resets next trading day |
+| `ALPACA_API_KEY not set` | Missing `.env` | Copy `.env.example` to `.env` and add your keys |
+| `insufficient qty` on sell | Shares locked by open orders | `cancel_all_orders()` or cancel via Alpaca dashboard |
+| Scanner returns only core tickers | Market is closed or Alpaca screener down | Scanner works during market hours; pre-market data is limited |
+| `Model not found` with Ollama | Model name mismatch | Run `ollama list` and update `ollama_models.json` to match |
+| Pydantic V1 warning | Python 3.14 compatibility | Harmless warning, everything still works |
+| Bracket order rejected | Stop/target too close to current price | Widen stop/target or use market orders |
+| `flatten` sells nothing | No positions to flatten | Expected if already flat or market is closed |
 
 ---
 
