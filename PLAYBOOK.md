@@ -823,6 +823,152 @@ swarm-trader/
 
 ---
 
+---
+
+## Day Trading Mode
+
+The system supports two operating modes that run side-by-side. Swing mode is the original buy-and-hold mode. Day trading mode is intraday only — positions are sized for single-day holds with mandatory stops.
+
+### Universe
+
+| Mode | Universe | Why |
+|---|---|---|
+| Swing | NVDA, AVGO, SMCI, TSM, TQQQ, SOXL, UPRO, PLTR, MSTR, COIN, RKLB, IONQ, RGTI, SOUN, LUNR | Long-term AI infra thesis |
+| Day | NVDA, AVGO, TSM, AMD, MSFT, AAPL, META, GOOGL, AMZN, PLTR, COIN, MSTR, RKLB, SPY, QQQ | Liquid names only — tight spreads, deep books |
+
+**What was removed from the day trade universe and why:**
+- `IONQ, RGTI, SOUN, LUNR` — too illiquid for day trading (wide spreads, shallow books, slippage kills edge)
+- `TQQQ, SOXL, UPRO` — 3x leverage amplifies overnight gap risk. Fine for swing, not for intraday.
+- `SMCI` — too volatile and news-driven for reliable technical setups
+
+### Risk Parameters (Day Mode)
+
+| Parameter | Value | Meaning |
+|---|---|---|
+| `MAX_RISK_PER_TRADE` | 2% | Risk at most 2% of portfolio per trade |
+| `MAX_PORTFOLIO_HEAT` | 10% | Max 10% of portfolio at risk across all open stops |
+| `MAX_POSITION_SIZE` | 15% | No single position larger than 15% of portfolio |
+| `DEFAULT_STOP_PCT` | 2% | Auto-stop at 2% below entry if agent doesn't provide one |
+| `DEFAULT_TARGET_MULTIPLIER` | 2.0 | Target = entry + 2× stop distance (minimum 2:1 R:R) |
+| `FLATTEN_BY` | 15:45 ET | Flatten speculative/leveraged positions by 3:45 PM |
+| `MAX_LOSS_PER_DAY` | 3% | Circuit breaker — no new entries if down 3% on the day |
+
+These constants live in `src/config.py` and are imported by `execute_trades.py` and `src/alpaca_integration.py`.
+
+### New Agents
+
+**`market_regime`** — Runs once per analysis cycle. Classifies SPY's intraday action:
+- `trending_up` → buy dips to VWAP, ride momentum
+- `trending_down` → sell rips, short weakness
+- `range_bound` → fade extremes, quick profits, tight stops
+- `volatile` → cut size 50%+ or sit out
+
+**`apex`** (rewritten) — Now a day trader, not a growth investor. For each ticker:
+- Reads VWAP, RSI, volume ratio, today's high/low, prev close
+- Reads the market regime from `market_regime`
+- Returns: `signal`, `confidence`, `entry_type` (market/limit/wait), `stop_price`, `target_price`
+
+Run `market_regime` before `apex` for best results:
+```bash
+poetry run python run_hedge_fund.py --analysts market_regime,apex --tickers NVDA,AAPL,SPY
+```
+
+### Gathering Intraday Data
+
+```bash
+# Day mode — fetches 5-min bars, VWAP, RSI, volume from Alpaca data API
+poetry run python gather_data.py --mode day
+
+# Include the full day trade universe
+poetry run python gather_data.py --mode day --include-universe
+
+# Specific tickers (always adds SPY + QQQ automatically for regime)
+poetry run python gather_data.py --mode day --tickers NVDA,AAPL,META
+```
+
+The `--mode day` payload includes per-ticker:
+- `intraday.vwap` — Volume-weighted average price for the day
+- `intraday.rsi_14` — RSI(14) on 5-min bars
+- `intraday.price_vs_vwap_pct` — % above/below VWAP
+- `intraday.high/low/open` — Today's intraday range
+- `intraday.prev_close` — Previous day's close (for gap analysis)
+- `intraday.premarket_high/low` — Pre-market range
+- `intraday.volume_ratio` — Today's volume vs 20-day average
+- `intraday.bars_5min` — Raw 5-min OHLCV bars
+
+### Executing Day Trades
+
+```bash
+# All buy orders now auto-get brackets (stop + take profit) unless you specify otherwise
+echo '{"trades":[{"ticker":"NVDA","action":"buy","qty":5,"reasoning":"VWAP bounce"}]}' \
+  | poetry run python execute_trades.py
+
+# With explicit bracket prices (preferred — use key levels, not default pcts)
+echo '{"trades":[{"ticker":"NVDA","action":"buy","qty":5,"stop_price":880,"take_profit":920,"reasoning":"VWAP bounce"}]}' \
+  | poetry run python execute_trades.py
+
+# Short selling (action="short")
+echo '{"trades":[{"ticker":"AAPL","action":"short","qty":10,"stop_price":195,"take_profit":185,"reasoning":"break below VWAP, SPY weak"}]}' \
+  | poetry run python execute_trades.py
+
+# Flatten ALL positions at market (end-of-day)
+poetry run python execute_trades.py --flatten
+
+# Preview flatten (dry run)
+poetry run python execute_trades.py --flatten --dry-run
+```
+
+### Bracket Auto-Fill Logic
+
+If you (or Cassius) submit a buy/short trade without `stop_price`:
+1. `execute_trades.py` looks up the current price from Alpaca
+2. Calculates stop at `current_price × (1 - DEFAULT_STOP_PCT)` = 2% below entry
+3. Calculates target at `entry + stop_distance × DEFAULT_TARGET_MULTIPLIER` = 2:1 R:R
+4. Submits as a bracket order
+
+Prefer providing explicit stops at actual key levels (VWAP, day low, round numbers). The auto-fill is a safety net, not a substitute for analysis.
+
+### Flatten-by-Close Concept
+
+Day traders must exit speculative positions before market close to avoid overnight gap risk. The `FLATTEN_BY = "15:45"` constant is the target time. This is not enforced automatically — Cassius needs to call `execute_trades.py --flatten` as part of the end-of-day cron:
+
+```bash
+# In your cron at 3:45 PM ET (15:45 ET = 12:45 PT)
+openclaw cron add flatten-eod \
+  --cron "45 12 * * 1-5" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --message "Flatten all open day trade positions. cd ~/projects/swarm-trader && poetry run python execute_trades.py --flatten. Report what was closed."
+```
+
+For swing positions (NVDA core, etc.) that you want to hold overnight, do NOT call `--flatten`. Instead, specify tickers in a partial flatten by piping a sell decision for only speculative positions.
+
+### Intraday Cron Schedule (Day Trading Mode)
+
+| Job | Schedule (PT) | Purpose |
+|---|---|---|
+| `premarket-scan` | Mon-Fri 5:00 AM | Gather intraday data, run `market_regime + apex` on day trade universe |
+| `open-watch` | Mon-Fri 6:35 AM | 5 min after open — first signals, execute if clear setups |
+| `midday-check` | Mon-Fri 9:00 AM | Midday regime check, manage open positions |
+| `flatten-eod` | Mon-Fri 12:45 PM | Flatten speculative positions before close (3:45 PM ET) |
+| `post-close` | Mon-Fri 1:05 PM | Review trades, log P&L, set watchlist for tomorrow |
+
+### Switching Between Modes
+
+```bash
+# Swing mode (default — fundamentals, news, original universe)
+poetry run python gather_data.py --mode swing --include-universe
+poetry run python run_hedge_fund.py --analysts warren_buffett,apex,technical_analyst
+
+# Day trading mode (intraday technicals, day trade universe)
+poetry run python gather_data.py --mode day --include-universe
+poetry run python run_hedge_fund.py --analysts market_regime,apex --tickers NVDA,AAPL,META,SPY
+```
+
+The two modes share the same codebase. Swing mode still works exactly as before — `UNIVERSE`, `ALL_UNIVERSE_TICKERS`, and `UNIVERSE_SIMPLE` are all backward-compatible aliases for `SWING_UNIVERSE`.
+
+---
+
 ## Quick Start Checklist
 
 For a new OpenClaw agent to get trading:

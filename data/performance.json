@@ -35,6 +35,15 @@
       "invested": 160681.22,
       "position_count": 20,
       "spy_price": 678.0800170898438
+    },
+    {
+      "date": "2026-03-12",
+      "timestamp": "2026-03-12T06:33:31.552438",
+      "equity": 153193.98,
+      "cash": 5682.24,
+      "invested": 147511.74000000002,
+      "position_count": 20,
+      "spy_price": 670.489990234375
     }
   ],
   "baseline": {

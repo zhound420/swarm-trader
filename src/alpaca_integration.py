@@ -2,11 +2,13 @@
 
 Fetches positions, converts to portfolio format, and executes trades with safety rails.
 
-Safety Rails:
-- Max single trade: 5% of portfolio value
-- Max daily trades: 5
-- Never sell entire position (keep at least 10%)
-- Require minimum 70% confidence from portfolio manager
+Safety Rails (day trading mode):
+- Max single trade: 15% of portfolio value
+- Max daily trades: 20
+- Minimum 55% confidence from portfolio manager
+- Every buy order gets a bracket (stop + take profit) unless explicitly overridden
+- Circuit breaker: stop all trading if down 3% on the day (MAX_LOSS_PER_DAY)
+- Short selling supported: side='sell' with no existing position = short
 - Paper trading only (enforces paper-api endpoint)
 - DRY_RUN mode by default
 """
@@ -34,11 +36,13 @@ _HEADERS = {
     "Content-Type": "application/json",
 }
 
-# Safety rail constants (aggressive paper trading mode)
-MAX_TRADE_PCT = 0.10       # Max 10% of portfolio per trade
-MAX_DAILY_TRADES = 8       # Max 8 trades per run
-MIN_KEEP_PCT = 0.05        # Keep at least 5% of any position when selling
-MIN_CONFIDENCE = 60        # Minimum confidence % to execute a trade
+# Safety rail constants — day trading mode
+MAX_TRADE_PCT    = 0.15    # Max 15% of portfolio per trade (day trading needs size)
+MAX_DAILY_TRADES = 20      # Max 20 trades per session
+MIN_CONFIDENCE   = 55      # Lower bar — more opportunities in intraday
+MAX_LOSS_PER_DAY = 0.03    # Circuit breaker: stop trading if down 3% today
+
+# Removed: MIN_KEEP_PCT — day traders exit fully, no partial holds
 
 # Track trades placed this session
 _session_trade_count = 0
@@ -121,6 +125,15 @@ def convert_to_portfolio(
     }
 
 
+def get_daily_pnl(account: dict) -> float:
+    """Calculate today's P&L as a fraction of starting equity."""
+    equity = float(account.get("equity", 0))
+    last_equity = float(account.get("last_equity", equity))
+    if last_equity <= 0:
+        return 0.0
+    return (equity - last_equity) / last_equity
+
+
 def _validate_trade(
     ticker: str,
     action: str,
@@ -129,6 +142,7 @@ def _validate_trade(
     current_price: float,
     current_shares: int,
     portfolio_value: float,
+    daily_pnl_pct: float = 0.0,
 ) -> tuple[bool, str]:
     """Validate a trade against all safety rails.
 
@@ -156,18 +170,18 @@ def _validate_trade(
             max_qty = int(max_trade_value / current_price)
             return False, (
                 f"Trade value ${trade_value:,.0f} exceeds max ${max_trade_value:,.0f} "
-                f"(5% of ${portfolio_value:,.0f}). Max qty: {max_qty}"
+                f"({MAX_TRADE_PCT*100:.0f}% of ${portfolio_value:,.0f}). Max qty: {max_qty}"
             )
 
-    # Rail 4: never sell entire position
-    if action in ("sell",) and current_shares > 0:
-        min_keep = max(1, int(current_shares * MIN_KEEP_PCT))
-        max_sell = current_shares - min_keep
-        if qty > max_sell:
-            return False, (
-                f"Would sell entire position. Max sell: {max_sell} shares "
-                f"(keeping {min_keep} = {MIN_KEEP_PCT*100:.0f}% of {current_shares})"
-            )
+    # Rail 4: circuit breaker — stop all new buys if down MAX_LOSS_PER_DAY
+    if action in ("buy", "cover") and daily_pnl_pct <= -MAX_LOSS_PER_DAY:
+        return False, (
+            f"Circuit breaker triggered: down {abs(daily_pnl_pct)*100:.1f}% today "
+            f"(limit {MAX_LOSS_PER_DAY*100:.0f}%). No new buys until tomorrow."
+        )
+
+    # Note: MIN_KEEP_PCT removed — day traders exit fully
+    # Short selling is allowed: action='short' or action='sell' with no existing long
 
     return True, ""
 
@@ -253,6 +267,80 @@ def _place_bracket_order(
     }
 
 
+def flatten_positions(
+    positions_raw: list[dict],
+    dry_run: bool = True,
+    tickers: list[str] | None = None,
+) -> list[dict]:
+    """Market-sell all open positions (end-of-day flatten).
+
+    Args:
+        positions_raw: Raw Alpaca positions list
+        dry_run: If True, show what would be sold without placing orders
+        tickers: If provided, only flatten these tickers. Default: all positions.
+
+    Returns:
+        List of result dicts per position flattened
+    """
+    results = []
+    for pos in positions_raw:
+        symbol = pos["symbol"]
+        if tickers and symbol not in tickers:
+            continue
+
+        qty = int(float(pos.get("qty", 0)))
+        if qty == 0:
+            continue
+
+        side = "sell" if qty > 0 else "buy"  # longs → sell, shorts → buy to cover
+        abs_qty = abs(qty)
+
+        if dry_run:
+            results.append({
+                "ticker": symbol,
+                "action": "flatten",
+                "qty": abs_qty,
+                "side": side,
+                "success": True,
+                "dry_run": True,
+            })
+        else:
+            order_data = {
+                "symbol": symbol,
+                "qty": str(abs_qty),
+                "side": side,
+                "type": "market",
+                "time_in_force": "day",
+            }
+            resp = requests.post(
+                f"{ALPACA_BASE_URL}/orders",
+                headers=_HEADERS,
+                json=order_data,
+                timeout=10,
+            )
+            if resp.status_code in (200, 201):
+                order = resp.json()
+                results.append({
+                    "ticker": symbol,
+                    "action": "flatten",
+                    "qty": abs_qty,
+                    "side": side,
+                    "success": True,
+                    "order_id": order.get("id"),
+                    "status": order.get("status"),
+                })
+            else:
+                results.append({
+                    "ticker": symbol,
+                    "action": "flatten",
+                    "qty": abs_qty,
+                    "success": False,
+                    "reason": f"Alpaca API error {resp.status_code}: {resp.text[:200]}",
+                })
+
+    return results
+
+
 def execute_decisions(
     decisions: dict,
     positions_raw: list[dict],
@@ -277,6 +365,7 @@ def execute_decisions(
     # Build position lookup
     positions_by_symbol: dict[str, dict] = {p["symbol"]: p for p in positions_raw}
     portfolio_value = get_alpaca_portfolio_value(account, positions_raw)
+    daily_pnl_pct = get_daily_pnl(account)
 
     results = []
 
@@ -290,6 +379,23 @@ def execute_decisions(
         order_type = decision.get("order_type", "market")
         limit_price = decision.get("limit_price")
         trail_percent = decision.get("trail_percent")
+
+        # Auto-enforce bracket on buy orders: calculate stop/target from DEFAULT_STOP_PCT
+        # if agent didn't provide them.
+        if action in ("buy", "cover") and order_type not in ("limit", "stop", "trailing_stop", "oco"):
+            pos = positions_by_symbol.get(ticker, {})
+            entry_price = float(pos.get("current_price", 0))
+            if entry_price <= 0:
+                # Try to get from decision
+                entry_price = float(decision.get("limit_price") or decision.get("entry_price") or 0)
+            if entry_price > 0:
+                from src.config import DEFAULT_STOP_PCT, DEFAULT_TARGET_MULTIPLIER
+                if stop_price is None:
+                    stop_price = round(entry_price * (1 - DEFAULT_STOP_PCT), 2)
+                if take_profit is None and stop_price is not None:
+                    stop_dist = entry_price - float(stop_price)
+                    take_profit = round(entry_price + stop_dist * DEFAULT_TARGET_MULTIPLIER, 2)
+
         use_bracket = stop_price is not None and take_profit is not None and order_type != "oco"
 
         if action == "hold" or qty <= 0:
@@ -315,6 +421,7 @@ def execute_decisions(
             current_price=current_price,
             current_shares=current_shares,
             portfolio_value=portfolio_value,
+            daily_pnl_pct=daily_pnl_pct,
         )
 
         if not is_valid:

@@ -20,6 +20,7 @@ from src.agents.mohnish_pabrai import mohnish_pabrai_agent
 from src.agents.news_sentiment import news_sentiment_agent
 from src.agents.growth_agent import growth_analyst_agent
 from src.agents.apex import apex_agent
+from src.agents.market_regime import market_regime_agent
 
 # Define analyst configuration - single source of truth
 ANALYST_CONFIG = {
@@ -169,11 +170,19 @@ ANALYST_CONFIG = {
     },
     "apex": {
         "display_name": "Apex",
-        "description": "Aggressive Growth & AI Infrastructure Specialist",
-        "investing_style": "Aggressive growth investor targeting AI infrastructure, leveraged ETFs, momentum plays, and moonshots. Contrarian on consensus, conviction-based sizing, cuts losers fast and lets winners run.",
+        "description": "Intraday Day Trading Specialist",
+        "investing_style": "Intraday day trader focused on liquid mega-cap tech and momentum names. Technical-first: VWAP, RSI, volume, key levels. Trades with the market regime. Always defines stop before entry. Cuts losers at stop, lets winners run to target.",
         "agent_func": apex_agent,
         "type": "analyst",
         "order": 18,
+    },
+    "market_regime": {
+        "display_name": "Market Regime",
+        "description": "Intraday Market Regime Classifier",
+        "investing_style": "Classifies the current intraday market regime (trending_up, trending_down, range_bound, volatile) using SPY/QQQ intraday data. Feeds into Apex so it adapts strategy to the tape. Run this before Apex for best results.",
+        "agent_func": market_regime_agent,
+        "type": "analyst",
+        "order": 19,
     },
 }
 
