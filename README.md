@@ -46,6 +46,7 @@ poetry run python gather_data.py --mode day
 ```
 
 **Day trading features:**
+- **Dynamic market scanner** — discovers today's movers, most active stocks, and high-volume opportunities before each session (no static ticker list)
 - **5-min intraday bars** from Alpaca market data API
 - **VWAP** — volume-weighted average price (key intraday level)
 - **RSI(14)** — momentum oscillator on 5-min timeframe
@@ -56,12 +57,15 @@ poetry run python gather_data.py --mode day
 - **Daily circuit breaker** — stops all new entries if down 3% for the day
 - **End-of-day flatten** — closes risky positions before market close
 
-**Day trading universe** (liquid, high-volume names only):
-| Category | Tickers |
+**Dynamic ticker discovery:** The market scanner (`scan_market.py`) runs before each trading session. It pulls top gainers/losers, most active stocks by volume, and filters for day-trading quality (min $10 price, no penny stocks, no warrants, no leveraged ETFs). Results are merged with a core watchlist of liquid mega-caps:
+
+| Source | What it finds |
 |---|---|
-| Mega-cap tech | NVDA, AVGO, TSM, AMD, MSFT, AAPL, META, GOOGL, AMZN |
-| Momentum | PLTR, COIN, MSTR, RKLB |
-| Direction/hedge | SPY, QQQ |
+| Core watchlist | NVDA, AVGO, TSM, AMD, MSFT, AAPL, META, GOOGL, AMZN, SPY, QQQ |
+| Scanner: movers | Today's biggest gainers and losers (filtered for quality) |
+| Scanner: most active | Highest trade count / volume stocks of the day |
+
+The scanner typically surfaces 15-25 tickers per session — a mix of names you always watch plus whatever's hot today (earnings movers, gap plays, unusual volume).
 
 ---
 
@@ -166,8 +170,15 @@ poetry run python run_hedge_fund.py --execute
 ### Run (Day Trading Mode)
 
 ```bash
-# Gather intraday data
-poetry run python gather_data.py --mode day --include-universe --output /tmp/market-data.json
+# Step 1: Scan for today's opportunities
+TICKERS=$(poetry run python scan_market.py --max 25)
+echo "Trading: $TICKERS"
+
+# Step 2: Gather intraday data for scanned tickers
+poetry run python gather_data.py --mode day --tickers $TICKERS --output /tmp/market-data.json
+
+# Or scan + gather in one pipeline:
+poetry run python gather_data.py --mode day --tickers $(poetry run python scan_market.py) --output /tmp/data.json
 
 # Execute from agent decisions
 echo '{"trades":[{"ticker":"NVDA","action":"buy","qty":10,"stop_price":180,"take_profit":190,"reasoning":"VWAP bounce"}]}' | \
@@ -320,6 +331,16 @@ See [PLAYBOOK.md](./PLAYBOOK.md) for complete cron setup with [OpenClaw](https:/
 | `--include-universe` | off | Include full universe |
 | `--output PATH` | stdout | Write JSON to file |
 
+### `scan_market.py`
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` | off | Full JSON output with metadata |
+| `--max N` | 25 | Max total tickers |
+| `--min-price N` | 10.0 | Min stock price (filters penny stocks) |
+| `--min-trades N` | 5000 | Min trade count for "most active" |
+| `--no-core` | off | Skip core watchlist, only discovered |
+
 ### `execute_trades.py`
 
 | Flag | Default | Description |
@@ -335,6 +356,7 @@ See [PLAYBOOK.md](./PLAYBOOK.md) for complete cron setup with [OpenClaw](https:/
 ```
 swarm-trader/
 ├── run_hedge_fund.py          # Main runner — analysis + execution
+├── scan_market.py             # Dynamic market scanner (movers + most active)
 ├── gather_data.py             # Market data gatherer (swing + day modes)
 ├── execute_trades.py          # Trade executor with bracket enforcement
 ├── check_portfolio.py         # Quick Alpaca portfolio check
