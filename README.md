@@ -91,7 +91,7 @@ The scanner typically surfaces 15-25 tickers per session — a mix of names you 
 | Evaluation budget | 5-min GPU training run | Fast backtest on cached 5-min bars (~30s) |
 | Research instructions | `program.md` | `program.md` |
 | Experiment log | JSONL with diffs and metrics | `experiments/log.jsonl` (same format) |
-| Agent | Claude Code (claude CLI) | Claude Code (claude CLI) or Anthropic SDK |
+| Agent | Claude Code (claude CLI) | Claude Code (claude CLI, pinned to Sonnet) or Anthropic SDK |
 | Overnight yield | ~100 experiments | ~25–50 iterations (configurable) |
 
 ### How It Works
