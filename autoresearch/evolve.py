@@ -13,8 +13,8 @@ Orchestrates the autoresearch loop:
 
 Usage:
     poetry run python autoresearch/evolve.py
-    poetry run python autoresearch/evolve.py --iterations 25 --backtest-days 10
-    poetry run python autoresearch/evolve.py --iterations 10 --agent claude --quiet
+    poetry run python autoresearch/evolve.py --iterations 50 --backtest-days 10
+    poetry run python autoresearch/evolve.py --iterations 25 --agent claude --quiet
     poetry run python autoresearch/evolve.py --dry-run   # No agent calls, test harness only
 
 Abort conditions:
@@ -420,8 +420,8 @@ def main() -> int:
         help="Trading mode to evolve: day (intraday, default) or swing (daily bars, multi-day)",
     )
     parser.add_argument(
-        "--iterations", type=int, default=25,
-        help="Number of evolution iterations (default: 25)",
+        "--iterations", type=int, default=50,
+        help="Number of evolution iterations (default: 50)",
     )
     parser.add_argument(
         "--agent", type=str, default="claude",

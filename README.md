@@ -349,7 +349,7 @@ execute_trades.py       →  Places bracket orders on Alpaca with safety rails
 | 1:00 PM | `swarm-lunch` | Light session, range plays |
 | 3:00 PM | `swarm-late` | Final hour push, last major moves |
 | 3:45 PM | `swarm-flatten` | **CRITICAL**: Close risky/short positions before close |
-| 5:00 PM | `autoresearch-evolve` | Overnight strategy evolution (25 iterations) |
+| 5:00 PM | `autoresearch-evolve` | Overnight strategy evolution (50 iterations) |
 
 ### Cron Setup Commands
 
@@ -530,12 +530,12 @@ openclaw cron add --name autoresearch-evolve \
   --to "YOUR_CHAT_ID" \
   --message "Run autoresearch evolution loop.
 
-cd ~/path/to/swarm-trader && poetry run python autoresearch/evolve.py --iterations 25 --backtest-days 10 --agent claude
+cd ~/path/to/swarm-trader && poetry run python autoresearch/evolve.py --iterations 50 --backtest-days 10 --agent claude
 
 When done, summarize: how many experiments ran, best fitness achieved, what changes were kept, and the top 3 findings."
 ```
 
-Runs after market close. The agent evolves `strategy.py` through 25 iterations against the last 10 trading days of cached data. Uses Sonnet as the outer orchestrator (Claude Code inside `evolve.py` handles strategy mutations). Results posted to Telegram.
+Runs after market close. The agent evolves `strategy.py` through 50 iterations against the last 10 trading days of cached data. Uses Sonnet as the outer orchestrator (Claude Code inside `evolve.py` handles strategy mutations). Results posted to Telegram.
 
 ### Swing Trading Schedule (alternative)
 
@@ -546,7 +546,7 @@ For longer-term position trading instead of intraday:
 | 6:30 AM | Morning analysis | Pre-market multi-agent analysis |
 | 9:00 AM | Portfolio check | Quick P/L report |
 | 4:30 PM | Evening research | Post-close deep analysis |
-| 5:00 PM | `autoresearch-evolve` | Swing strategy evolution (25 iterations, `--mode swing`) |
+| 5:00 PM | `autoresearch-evolve` | Swing strategy evolution (50 iterations, `--mode swing`) |
 
 Swing mode uses `gather_data.py --mode swing` (fundamentals, news, insider trades) instead of intraday technicals. See [PLAYBOOK.md](./PLAYBOOK.md) for swing cron setup.
 
@@ -565,7 +565,7 @@ openclaw cron add --name autoresearch-evolve-swing \
   --to "YOUR_CHAT_ID" \
   --message "Run autoresearch swing evolution loop.
 
-cd ~/path/to/swarm-trader && poetry run python autoresearch/evolve.py --mode swing --iterations 25 --backtest-days 30 --agent claude
+cd ~/path/to/swarm-trader && poetry run python autoresearch/evolve.py --mode swing --iterations 50 --backtest-days 30 --agent claude
 
 When done, summarize: how many experiments ran, best fitness achieved, what swing strategy changes were kept (MA periods, stop %, trend thresholds), and the top 3 findings."
 ```
@@ -781,8 +781,8 @@ poetry run python autoresearch/backtest_fast.py --days 10
 # 2. Run the baseline backtest
 poetry run python autoresearch/backtest_fast.py
 
-# 3. Kick off autonomous evolution (25 iterations)
-poetry run python autoresearch/evolve.py --iterations 25
+# 3. Kick off autonomous evolution (50 iterations)
+poetry run python autoresearch/evolve.py --iterations 50
 
 # 4. Review experiment log
 cat autoresearch/experiments/log.jsonl | python3 -m json.tool
