@@ -473,12 +473,12 @@ def _print_summary(experiments: list[dict], baseline_fitness: float) -> None:
 
     for exp in experiments:
         eid = exp.get("experiment_id", "?")[:8]
-        fitness = exp.get("fitness_score", 0)
+        fitness = exp.get("fitness_score") or 0
         kept_str = "YES" if exp.get("kept") else "NO"
-        metrics = exp.get("metrics", {})
-        ret = metrics.get("total_return_pct", 0)
-        sharpe = metrics.get("sharpe_ratio", 0)
-        trades = metrics.get("num_trades", 0)
+        metrics = exp.get("metrics") or {}
+        ret = metrics.get("total_return_pct") or 0
+        sharpe = metrics.get("sharpe_ratio") or 0
+        trades = metrics.get("num_trades") or 0
         hyp = exp.get("hypothesis", "?")[:48]
         print(f"{eid:<10} {fitness:<12.4f} {kept_str:<8} {ret:<8.2f} {sharpe:<8.3f} {trades:<8} {hyp}")
 
