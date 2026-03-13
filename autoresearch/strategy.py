@@ -1,6 +1,6 @@
-# EXPERIMENT: tighter_rsi_thresholds
-# HYPOTHESIS: RSI<30 triggers on readings like 28-29, which are moderate oversold. RSI<27 (very oversold) represents a more extreme deviation from fair value with stronger mean-reversion pull. Tightening to 27/73 reduces trade count slightly (32→~22-26, still above 10 minimum) but captures only the highest-quality extreme RSI setups where reversal probability is highest. Improved win rate from ~59% to ~65%+ directly improves Sharpe, Sortino, and profit_factor — the top fitness components.
-# CHANGE: RSI_OVERSOLD from 30 to 27, RSI_OVERBOUGHT from 70 to 73
+# EXPERIMENT: ultra_tight_rsi_thresholds
+# HYPOTHESIS: RSI<27 gave 27 trades at 59.26% WR — readings in the 25-26.9 range are still moderate extremes. RSI<25 (ultra oversold) and >75 (ultra overbought) represent panic-level extremes with the strongest historical mean-reversion snap-back. Reducing from 27→25/73→75 should cut trades from 27→~18-22 (safely above 10-trade penalty) while pushing win rate toward 63%+, directly boosting Sharpe, Sortino, and profit_factor — the top three fitness components.
+# CHANGE: RSI_OVERSOLD from 27 to 25, RSI_OVERBOUGHT from 73 to 75
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "tighter_rsi_thresholds"
-EXPERIMENT_HYPOTHESIS = "RSI<30 triggers on readings like 28-29, which are moderate oversold. RSI<27 (very oversold) represents a more extreme deviation from fair value with stronger mean-reversion pull. Tightening to 27/73 reduces trade count slightly (32→~22-26, still above 10 minimum) but captures only the highest-quality extreme RSI setups where reversal probability is highest. Improved win rate from ~59% to ~65%+ directly improves Sharpe, Sortino, and profit_factor — the top fitness components."
-EXPERIMENT_CHANGE = "RSI_OVERSOLD from 30 to 27, RSI_OVERBOUGHT from 70 to 73"
+EXPERIMENT_NAME = "ultra_tight_rsi_thresholds"
+EXPERIMENT_HYPOTHESIS = "RSI<27 gave 27 trades at 59.26% WR — readings in the 25-26.9 range are still moderate extremes. RSI<25 (ultra oversold) and >75 (ultra overbought) represent panic-level extremes with the strongest historical mean-reversion snap-back. Reducing from 27→25/73→75 should cut trades from 27→~18-22 (safely above 10-trade penalty) while pushing win rate toward 63%+, directly boosting Sharpe, Sortino, and profit_factor — the top three fitness components."
+EXPERIMENT_CHANGE = "RSI_OVERSOLD from 27 to 25, RSI_OVERBOUGHT from 73 to 75"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -29,8 +29,8 @@ EXPERIMENT_CHANGE = "RSI_OVERSOLD from 30 to 27, RSI_OVERBOUGHT from 70 to 73"
 
 # RSI thresholds
 RSI_PERIOD = 14
-RSI_OVERSOLD = 27           # Buy signal below this
-RSI_OVERBOUGHT = 73         # Sell signal above this
+RSI_OVERSOLD = 25           # Buy signal below this
+RSI_OVERBOUGHT = 75         # Sell signal above this
 RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
 
