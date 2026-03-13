@@ -1,6 +1,6 @@
-# EXPERIMENT: range_bound_multiplier_1.0
-# HYPOTHESIS: Range-bound markets are ideal for RSI mean-reversion. The current range_bound multiplier (0.85) combined with the RSI-extreme bonus (1.15x) nets ~0.98x — nearly neutral, suppressing quality setups. Raising range_bound to 1.00 lets RSI-extreme reversals score at full strength in range-bound regimes, adding 1-2 higher-quality trades and improving win rate and Sharpe without increasing noise.
-# CHANGE: REGIME_MULTIPLIER["range_bound"] raised from 0.85 to 1.00
+# EXPERIMENT: qqq_alignment_bonus
+# HYPOTHESIS: qqq_change_pct is available in market_context but unused. When QQQ aligns with trade direction (tech market confirmation), signal quality is higher. Adding a 1.05x QQQ alignment bonus (mirroring SPY) means trades where both SPY and QQQ confirm get a combined ~1.10x boost, improving win rate and Sharpe by filtering out signals that trade against broad market momentum.
+# CHANGE: Added QQQ alignment bonus (1.05x) after SPY alignment, using qqq_change_pct from market_context
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "range_bound_multiplier_1.0"
-EXPERIMENT_HYPOTHESIS = "Range-bound markets are ideal for RSI mean-reversion. The current range_bound multiplier (0.85) combined with the RSI-extreme bonus (1.15x) nets ~0.98x — nearly neutral, suppressing quality setups. Raising range_bound to 1.00 lets RSI-extreme reversals score at full strength in range-bound regimes, adding 1-2 higher-quality trades and improving win rate and Sharpe."
-EXPERIMENT_CHANGE = "REGIME_MULTIPLIER['range_bound'] raised from 0.85 to 1.00"
+EXPERIMENT_NAME = "qqq_alignment_bonus"
+EXPERIMENT_HYPOTHESIS = "qqq_change_pct is available in market_context but unused. When QQQ aligns with trade direction (tech market confirmation), signal quality is higher. Adding a 1.05x QQQ alignment bonus (mirroring SPY) means trades where both SPY and QQQ confirm get a combined ~1.10x boost, improving win rate and Sharpe by filtering out signals that trade against broad market momentum."
+EXPERIMENT_CHANGE = "Added QQQ alignment bonus (1.05x) after SPY alignment, using qqq_change_pct from market_context"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -296,6 +296,13 @@ def _ticker_signal(
     if spy_chg > 0.3 and bull_score > bear_score:
         bull_score *= 1.05
     elif spy_chg < -0.3 and bear_score > bull_score:
+        bear_score *= 1.05
+
+    # QQQ alignment — independent tech-market confirmation bonus
+    qqq_chg = float(market_context.get("qqq_change_pct") or 0.0)
+    if qqq_chg > 0.3 and bull_score > bear_score:
+        bull_score *= 1.05
+    elif qqq_chg < -0.3 and bear_score > bull_score:
         bear_score *= 1.05
 
     # --- Pick direction ---
