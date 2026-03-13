@@ -1,6 +1,6 @@
-# EXPERIMENT: higher_rr_ratio
-# HYPOTHESIS: RSI extreme mean-reversion signals (<30 oversold, >70 overbought) typically produce multi-percent moves once reversal begins. With STOP_PCT=0.8% and 59% win rate, raising TARGET_MULTIPLIER from 2.2 to 2.5 increases winner gain from 1.76% to 2.0% while keeping the same stop. EV improves from 0.59*2.2-0.41=0.888 to 0.59*2.5-0.41=1.065 per unit risk. Profit_factor and total_return improve directly; Sharpe/Sortino benefit from larger average winner vs stable loser.
-# CHANGE: TARGET_MULTIPLIER from 2.2 to 2.5
+# EXPERIMENT: tighter_rsi_thresholds
+# HYPOTHESIS: RSI<30 triggers on readings like 28-29, which are moderate oversold. RSI<27 (very oversold) represents a more extreme deviation from fair value with stronger mean-reversion pull. Tightening to 27/73 reduces trade count slightly (32→~22-26, still above 10 minimum) but captures only the highest-quality extreme RSI setups where reversal probability is highest. Improved win rate from ~59% to ~65%+ directly improves Sharpe, Sortino, and profit_factor — the top fitness components.
+# CHANGE: RSI_OVERSOLD from 30 to 27, RSI_OVERBOUGHT from 70 to 73
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "higher_rr_ratio"
-EXPERIMENT_HYPOTHESIS = "RSI extreme mean-reversion signals (<30 oversold, >70 overbought) typically produce multi-percent moves once reversal begins. With STOP_PCT=0.8% and 59% win rate, raising TARGET_MULTIPLIER from 2.2 to 2.5 increases winner gain from 1.76% to 2.0% while keeping the same stop. EV improves from 0.59*2.2-0.41=0.888 to 0.59*2.5-0.41=1.065 per unit risk. Profit_factor and total_return improve directly; Sharpe/Sortino benefit from larger average winner vs stable loser."
-EXPERIMENT_CHANGE = "TARGET_MULTIPLIER from 2.2 to 2.5"
+EXPERIMENT_NAME = "tighter_rsi_thresholds"
+EXPERIMENT_HYPOTHESIS = "RSI<30 triggers on readings like 28-29, which are moderate oversold. RSI<27 (very oversold) represents a more extreme deviation from fair value with stronger mean-reversion pull. Tightening to 27/73 reduces trade count slightly (32→~22-26, still above 10 minimum) but captures only the highest-quality extreme RSI setups where reversal probability is highest. Improved win rate from ~59% to ~65%+ directly improves Sharpe, Sortino, and profit_factor — the top fitness components."
+EXPERIMENT_CHANGE = "RSI_OVERSOLD from 30 to 27, RSI_OVERBOUGHT from 70 to 73"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -29,8 +29,8 @@ EXPERIMENT_CHANGE = "TARGET_MULTIPLIER from 2.2 to 2.5"
 
 # RSI thresholds
 RSI_PERIOD = 14
-RSI_OVERSOLD = 30           # Buy signal below this
-RSI_OVERBOUGHT = 70         # Sell signal above this
+RSI_OVERSOLD = 27           # Buy signal below this
+RSI_OVERBOUGHT = 73         # Sell signal above this
 RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
 
