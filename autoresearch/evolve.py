@@ -50,6 +50,7 @@ STRATEGY_PATH = AUTORESEARCH_DIR / "strategy.py"
 STRATEGY_BACKUP_PATH = AUTORESEARCH_DIR / "strategy_backup.py"
 EXPERIMENTS_DIR = AUTORESEARCH_DIR / "experiments"
 LOG_PATH = EXPERIMENTS_DIR / "log.jsonl"
+RUNS_LOG_PATH = EXPERIMENTS_DIR / "runs.jsonl"
 PROGRAM_MD_PATH = AUTORESEARCH_DIR / "program.md"
 BACKTEST_SCRIPT = AUTORESEARCH_DIR / "backtest_fast.py"
 
@@ -91,6 +92,12 @@ def _load_recent_experiments(n: int = 10) -> list[dict]:
 def _append_experiment(record: dict) -> None:
     """Append an experiment record to log.jsonl."""
     with open(LOG_PATH, "a") as f:
+        f.write(json.dumps(record, default=str) + "\n")
+
+
+def _write_run_summary(record: dict) -> None:
+    """Append a run summary record to runs.jsonl."""
+    with open(RUNS_LOG_PATH, "a") as f:
         f.write(json.dumps(record, default=str) + "\n")
 
 
@@ -552,6 +559,9 @@ def main() -> int:
     )
 
     # --- Evolution state ---
+    run_id = str(uuid.uuid4())
+    timestamp_start = datetime.utcnow().isoformat() + "Z"
+    stop_reason = "completed"
     session_experiments: list[dict] = []
     consecutive_failures = 0
     consecutive_timeouts = 0
@@ -602,11 +612,13 @@ def main() -> int:
                 consecutive_timeouts += 1
                 if consecutive_timeouts >= MAX_CONSECUTIVE_TIMEOUTS:
                     print(f"\n[ABORT] {MAX_CONSECUTIVE_TIMEOUTS} consecutive agent timeouts.", file=sys.stderr)
+                    stop_reason = "abort"
                     break
             else:
                 consecutive_failures += 1
                 if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                     print(f"\n[ABORT] {MAX_CONSECUTIVE_FAILURES} consecutive failures. Stopping.", file=sys.stderr)
+                    stop_reason = "abort"
                     break
             continue
 
@@ -630,6 +642,7 @@ def main() -> int:
             session_experiments.append({"experiment_id": experiment_id, "kept": False, "fitness_score": None, "hypothesis": "syntax_error", "metrics": {}, "error": syntax_err[:100]})
             if consecutive_syntax_errors >= MAX_CONSECUTIVE_SYNTAX_ERRORS:
                 print(f"\n[ABORT] {MAX_CONSECUTIVE_SYNTAX_ERRORS} consecutive syntax errors. Stopping.", file=sys.stderr)
+                stop_reason = "abort"
                 break
             continue
 
@@ -665,6 +678,7 @@ def main() -> int:
             consecutive_failures += 1
             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                 print(f"\n[ABORT] {MAX_CONSECUTIVE_FAILURES} consecutive failures. Stopping.", file=sys.stderr)
+                stop_reason = "abort"
                 break
             continue
 
@@ -744,6 +758,7 @@ def main() -> int:
                     f"\n[PLATEAU] No improvement in {PLATEAU_ITERATIONS} iterations. Stopping early.",
                     file=sys.stderr,
                 )
+                stop_reason = "plateau"
                 break
 
     # --- Final summary ---
@@ -757,6 +772,39 @@ def main() -> int:
     # Clean up backup
     if STRATEGY_BACKUP_PATH.exists():
         STRATEGY_BACKUP_PATH.unlink()
+
+    # --- Write run summary ---
+    kept_experiments = [e for e in session_experiments if e.get("kept")]
+    top_hypothesis: str | None = None
+    if kept_experiments:
+        best_kept = max(kept_experiments, key=lambda e: e.get("fitness_score") or -999)
+        top_hypothesis = best_kept.get("hypothesis")
+
+    error_count = sum(
+        1 for e in session_experiments if e.get("error")
+    )
+    timeout_count = sum(
+        1 for e in session_experiments
+        if "timed out" in (e.get("error") or "").lower()
+    )
+
+    _write_run_summary({
+        "run_id": run_id,
+        "timestamp_start": timestamp_start,
+        "timestamp_end": datetime.utcnow().isoformat() + "Z",
+        "mode": args.mode,
+        "iterations_requested": args.iterations,
+        "iterations_completed": len(session_experiments),
+        "stop_reason": stop_reason,
+        "baseline_fitness": baseline_fitness,
+        "best_fitness": best_fitness,
+        "improvement": best_fitness - baseline_fitness,
+        "keep_count": len(kept_experiments),
+        "total_experiments": len(session_experiments),
+        "error_count": error_count,
+        "timeout_count": timeout_count,
+        "top_hypothesis": top_hypothesis,
+    })
 
     return 0
 

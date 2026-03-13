@@ -130,10 +130,13 @@ poetry run python autoresearch/backtest_fast.py
 # 3. Kick off autonomous evolution (25 iterations)
 poetry run python autoresearch/evolve.py --iterations 25
 
-# 4. Review experiment log
+# 4. Review per-run trend (after first run completes)
+poetry run python autoresearch/analyze.py
+
+# 5. Or drill into raw experiment log
 cat autoresearch/experiments/log.jsonl | python3 -m json.tool
 
-# 5. Or let it run automatically via cron (see Automation section)
+# 6. Or let it run automatically via cron (see Automation section)
 # autoresearch-evolve cron runs at 5:00 PM PT Mon-Fri after market close
 ```
 
@@ -144,8 +147,10 @@ cat autoresearch/experiments/log.jsonl | python3 -m json.tool
 | `autoresearch/strategy.py` | Pure-Python strategy (indicators, params, signal rules) | Agent |
 | `autoresearch/backtest_fast.py` | Deterministic backtester, fitness scorer | Nobody |
 | `autoresearch/evolve.py` | Evolution loop orchestrator | Nobody |
+| `autoresearch/analyze.py` | Cross-run analytics — run history, fitness trend, hypothesis frequency | Nobody |
 | `autoresearch/program.md` | Agent instructions | Human |
-| `autoresearch/experiments/log.jsonl` | Full experiment history | System |
+| `autoresearch/experiments/log.jsonl` | Full experiment history (one record per experiment) | System |
+| `autoresearch/experiments/runs.jsonl` | Per-session run summaries (one record per evolve.py run) | System |
 
 ### From Research to Production
 
