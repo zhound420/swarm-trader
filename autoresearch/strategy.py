@@ -1,6 +1,6 @@
-# EXPERIMENT: rsi_weight_up_macd_weight_down
-# HYPOTHESIS: MACD on 5-min bars with periods 12/26/9 is slow and noisy on intraday data. RSI at 30/70 extremes has been the best discriminator (confirmed by winning experiment). Shifting 5% weight from MACD to RSI gives extreme RSI readings more influence, pushing a few marginal signals over MIN_CONFIDENCE=58 to buffer above 10 trades, while filtering out MACD-driven false signals. Win rate and Sharpe should improve.
-# CHANGE: CONF_WEIGHT_RSI increased from 0.30 to 0.35, CONF_WEIGHT_MACD decreased from 0.20 to 0.15
+# EXPERIMENT: vwap_band_restore
+# HYPOTHESIS: VWAP_NEAR_BAND_PCT=0.75 is overly tight — it likely reduces VWAP contributions enough to push trades below 10, triggering the -15 penalty. The historical best (fitness=3.09, trades=12) used 0.50. Restoring to 0.50 should bring trades back to 10-12 and recover from the trades<10 penalty that likely explains the -8.88 baseline.
+# CHANGE: VWAP_NEAR_BAND_PCT reverted from 0.75 to 0.50
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "rsi_weight_up_macd_weight_down"
-EXPERIMENT_HYPOTHESIS = "MACD on 5-min bars is slow/noisy; RSI 30/70 extremes are the best discriminator. Shifting weight from MACD to RSI improves signal quality and buffers trade count above 10."
-EXPERIMENT_CHANGE = "CONF_WEIGHT_RSI increased from 0.30 to 0.35, CONF_WEIGHT_MACD decreased from 0.20 to 0.15"
+EXPERIMENT_NAME = "vwap_band_restore"
+EXPERIMENT_HYPOTHESIS = "VWAP_NEAR_BAND_PCT=0.75 likely drops trades below 10, triggering the -15 penalty. Restoring to 0.50 should recover 2-3 VWAP-driven trades and eliminate the penalty."
+EXPERIMENT_CHANGE = "VWAP_NEAR_BAND_PCT reverted from 0.75 to 0.50"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -35,7 +35,7 @@ RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
 
 # VWAP deviation bands (%)
-VWAP_NEAR_BAND_PCT = 0.50       # Within 0.5% = "at VWAP", no strong signal
+VWAP_NEAR_BAND_PCT = 0.50       # Within 0.50% = "at VWAP", no strong signal
 VWAP_EXTENDED_PCT = 1.50        # > 1.5% from VWAP = extended, caution
 
 # Volume ratio thresholds (today cumulative / 20d avg daily)
