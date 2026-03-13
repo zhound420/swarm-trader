@@ -1,6 +1,6 @@
-# EXPERIMENT: tighten_rsi_thresholds
-# HYPOTHESIS: RSI_OVERSOLD=35 and RSI_OVERBOUGHT=65 are generous — many tickers briefly dip to 35 or spike to 65 intraday without real mean-reversion setups. Tightening to 30/70 means only genuinely extreme RSI readings trigger the full 100% RSI component, producing fewer but higher-conviction signals, improving win rate and Sharpe.
-# CHANGE: RSI_OVERSOLD decreased from 35 to 30, RSI_OVERBOUGHT increased from 65 to 70
+# EXPERIMENT: rsi_weight_up_macd_weight_down
+# HYPOTHESIS: MACD on 5-min bars with periods 12/26/9 is slow and noisy on intraday data. RSI at 30/70 extremes has been the best discriminator (confirmed by winning experiment). Shifting 5% weight from MACD to RSI gives extreme RSI readings more influence, pushing a few marginal signals over MIN_CONFIDENCE=58 to buffer above 10 trades, while filtering out MACD-driven false signals. Win rate and Sharpe should improve.
+# CHANGE: CONF_WEIGHT_RSI increased from 0.30 to 0.35, CONF_WEIGHT_MACD decreased from 0.20 to 0.15
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "tighten_rsi_thresholds"
-EXPERIMENT_HYPOTHESIS = "RSI_OVERSOLD=35/RSI_OVERBOUGHT=65 are too generous; tightening to 30/70 requires more extreme readings for full RSI conviction, improving signal quality and win rate"
-EXPERIMENT_CHANGE = "RSI_OVERSOLD decreased from 35 to 30, RSI_OVERBOUGHT increased from 65 to 70"
+EXPERIMENT_NAME = "rsi_weight_up_macd_weight_down"
+EXPERIMENT_HYPOTHESIS = "MACD on 5-min bars is slow/noisy; RSI 30/70 extremes are the best discriminator. Shifting weight from MACD to RSI improves signal quality and buffers trade count above 10."
+EXPERIMENT_CHANGE = "CONF_WEIGHT_RSI increased from 0.30 to 0.35, CONF_WEIGHT_MACD decreased from 0.20 to 0.15"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -51,10 +51,10 @@ MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 MIN_CONFIDENCE = 58.0
 
 # Confidence component weights (must sum to 1.0)
-CONF_WEIGHT_RSI = 0.30
+CONF_WEIGHT_RSI = 0.35
 CONF_WEIGHT_VWAP = 0.30
 CONF_WEIGHT_VOLUME = 0.20
-CONF_WEIGHT_MACD = 0.20
+CONF_WEIGHT_MACD = 0.15
 
 # MACD parameters
 MACD_FAST = 12
