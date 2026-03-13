@@ -58,10 +58,14 @@ EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------------
 # Abort thresholds
 # ---------------------------------------------------------------------------
-MAX_CONSECUTIVE_FAILURES = 5
+MAX_CONSECUTIVE_FAILURES = 5     # backtest errors / non-timeout agent errors
+MAX_CONSECUTIVE_TIMEOUTS = 4     # agent timeouts specifically
 MAX_CONSECUTIVE_SYNTAX_ERRORS = 3
 BACKTEST_TIMEOUT_SEC = 300       # 5 min per backtest run
 AGENT_TIMEOUT_SEC = 420          # 7 min per iteration (5 min was too tight, ~40% failure rate)
+PLATEAU_ITERATIONS = 15          # stop early if no improvement in this many consecutive iterations
+OOS_FITNESS_FLOOR = -5.0         # reject keeper if OOS fitness drops below this
+OOS_BACKTEST_DAYS = 20           # wider window for out-of-sample check
 
 
 # ---------------------------------------------------------------------------
@@ -550,7 +554,9 @@ def main() -> int:
     # --- Evolution state ---
     session_experiments: list[dict] = []
     consecutive_failures = 0
+    consecutive_timeouts = 0
     consecutive_syntax_errors = 0
+    iterations_since_improvement = 0
 
     for iteration in range(1, args.iterations + 1):
         print(f"\n[{iteration}/{args.iterations}] Starting experiment...", file=sys.stderr)
@@ -562,7 +568,7 @@ def main() -> int:
         shutil.copy2(STRATEGY_PATH, STRATEGY_BACKUP_PATH)
 
         # 2. Load recent experiment history
-        recent_experiments = _load_recent_experiments(n=10)
+        recent_experiments = _load_recent_experiments(n=20)
 
         # 3. Build agent prompt
         prompt = _build_agent_prompt(
@@ -592,10 +598,16 @@ def main() -> int:
                 "error": f"agent_error: {agent_output[:200]}",
             })
             session_experiments.append({"experiment_id": experiment_id, "kept": False, "fitness_score": None, "hypothesis": "agent_error", "metrics": {}, "error": agent_output[:100]})
-            consecutive_failures += 1
-            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                print(f"\n[ABORT] {MAX_CONSECUTIVE_FAILURES} consecutive failures. Stopping.", file=sys.stderr)
-                break
+            if "timed out" in agent_output.lower() or "TimeoutExpired" in agent_output:
+                consecutive_timeouts += 1
+                if consecutive_timeouts >= MAX_CONSECUTIVE_TIMEOUTS:
+                    print(f"\n[ABORT] {MAX_CONSECUTIVE_TIMEOUTS} consecutive agent timeouts.", file=sys.stderr)
+                    break
+            else:
+                consecutive_failures += 1
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    print(f"\n[ABORT] {MAX_CONSECUTIVE_FAILURES} consecutive failures. Stopping.", file=sys.stderr)
+                    break
             continue
 
         # 5. Syntax check
@@ -656,27 +668,41 @@ def main() -> int:
                 break
             continue
 
-        consecutive_failures = 0  # reset on backtest success
+        consecutive_failures = 0   # reset on backtest success
+        consecutive_timeouts = 0   # reset on any successful agent call + backtest
 
         new_fitness = metrics.get("fitness", -999.0)
         fitness_delta = new_fitness - best_fitness
 
-        # 9. Keep or revert
-        kept = new_fitness > best_fitness
+        # 9. Keep or revert (with OOS validation)
+        kept = False
+        oos_rejection_msg = None
 
-        if kept:
-            best_fitness = new_fitness
-            print(
-                f"  [KEPT] fitness={new_fitness:.4f} (Δ{fitness_delta:+.4f})  "
-                f"return={metrics.get('total_return_pct',0):+.2f}%  "
-                f"sharpe={metrics.get('sharpe_ratio',0):.2f}  "
-                f"trades={metrics.get('num_trades',0)}",
-                file=sys.stderr,
-            )
-            # Git commit
-            committed = _git_commit(hypothesis, experiment_id, new_fitness)
-            if not args.quiet and committed:
-                print(f"  [git] Committed.", file=sys.stderr)
+        if new_fitness > best_fitness:
+            # OOS validation — test on wider window before committing
+            oos_ok, oos_metrics = _run_backtest(OOS_BACKTEST_DAYS, args.capital, quiet=True, mode=args.mode)
+            oos_fitness = oos_metrics.get("fitness", -999.0) if oos_ok else -999.0
+            if oos_fitness < OOS_FITNESS_FLOOR:
+                shutil.copy2(STRATEGY_BACKUP_PATH, STRATEGY_PATH)
+                oos_rejection_msg = f"oos_rejected: oos_fitness={oos_fitness:.4f}"
+                print(
+                    f"  [OOS REJECTED] IS fitness={new_fitness:.4f} but OOS fitness={oos_fitness:.4f} < floor {OOS_FITNESS_FLOOR}",
+                    file=sys.stderr,
+                )
+            else:
+                kept = True
+                best_fitness = new_fitness
+                print(
+                    f"  [KEPT] IS={new_fitness:.4f} OOS={oos_fitness:.4f} (Δ{fitness_delta:+.4f})  "
+                    f"return={metrics.get('total_return_pct',0):+.2f}%  "
+                    f"sharpe={metrics.get('sharpe_ratio',0):.2f}  "
+                    f"trades={metrics.get('num_trades',0)}",
+                    file=sys.stderr,
+                )
+                # Git commit
+                committed = _git_commit(hypothesis, experiment_id, new_fitness)
+                if not args.quiet and committed:
+                    print(f"  [git] Committed.", file=sys.stderr)
         else:
             # Revert to backup
             shutil.copy2(STRATEGY_BACKUP_PATH, STRATEGY_PATH)
@@ -697,7 +723,7 @@ def main() -> int:
             "fitness_score": new_fitness,
             "metrics": metrics,
             "kept": kept,
-            "error": None,
+            "error": oos_rejection_msg,
         }
         _append_experiment(record)
         session_experiments.append({
@@ -707,6 +733,18 @@ def main() -> int:
             "hypothesis": hypothesis,
             "metrics": metrics,
         })
+
+        # 11. Plateau detection — stop early if no improvement for N consecutive iterations
+        if kept:
+            iterations_since_improvement = 0
+        else:
+            iterations_since_improvement += 1
+            if iterations_since_improvement >= PLATEAU_ITERATIONS:
+                print(
+                    f"\n[PLATEAU] No improvement in {PLATEAU_ITERATIONS} iterations. Stopping early.",
+                    file=sys.stderr,
+                )
+                break
 
     # --- Final summary ---
     all_experiments = _load_recent_experiments(n=1000)

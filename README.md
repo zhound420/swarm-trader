@@ -641,7 +641,7 @@ openclaw cron add --name autoresearch-run \
   --timeout 10800 \
   --message "Run the autoresearch evolution loop (no announcement — report job handles that).
 
-cd ~/path/to/swarm-trader && poetry run python autoresearch/evolve.py --iterations 50 --backtest-days 10 --agent claude 2>&1 | tee /tmp/autoresearch-latest.log"
+cd ~/path/to/swarm-trader && poetry run python autoresearch/backtest_fast.py --days 10 && poetry run python autoresearch/evolve.py --iterations 50 --backtest-days 10 --agent claude 2>&1 | tee /tmp/autoresearch-latest.log"
 ```
 
 **AutoResearch Report (8:00 PM, Mon-Fri — reporter):**
@@ -692,7 +692,7 @@ openclaw cron add --name autoresearch-run-swing \
   --timeout 10800 \
   --message "Run the autoresearch swing evolution loop (no announcement — report job handles that).
 
-cd ~/path/to/swarm-trader && poetry run python autoresearch/evolve.py --mode swing --iterations 50 --backtest-days 30 --agent claude 2>&1 | tee /tmp/autoresearch-swing-latest.log"
+cd ~/path/to/swarm-trader && poetry run python autoresearch/backtest_fast.py --days 30 && poetry run python autoresearch/evolve.py --mode swing --iterations 50 --backtest-days 30 --agent claude 2>&1 | tee /tmp/autoresearch-swing-latest.log"
 
 openclaw cron add --name autoresearch-report-swing \
   --cron "0 20 * * 1-5" \

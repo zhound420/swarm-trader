@@ -63,11 +63,11 @@ MACD_SIGNAL_PERIOD = 7
 
 # Regime multipliers — scale confidence based on market conditions
 REGIME_MULTIPLIER: dict[str, float] = {
-    "trending_up": 1.00,
-    "trending_down": 1.00,
-    "range_bound": 1.00,
-    "volatile": 0.55,
-    "unknown": 0.70,
+    "trending_up":    1.00,
+    "trending_down":  1.00,
+    "range_bound":    1.00,
+    "volatile":       0.65,   # was 0.55 — 0.55 made signals mathematically impossible (58/0.55=105 > max 95)
+    "unknown":        0.70,
 }
 
 # Time-of-day filters (ET)

@@ -4,6 +4,25 @@
 
 ---
 
+## Known Failure Modes (read before iterating)
+
+**1. Volatile regime + MIN_CONFIDENCE interaction**
+The volatile regime multiplier scales raw confidence down before checking MIN_CONFIDENCE. If `volatile_mult * max_raw_confidence < MIN_CONFIDENCE`, no signals pass in volatile markets → < 10 trades penalty (-15 fitness). When changing MIN_CONFIDENCE or REGIME_MULTIPLIER["volatile"], verify: `MIN_CONFIDENCE / volatile_mult ≤ 95.0` (the max achievable confidence). Current values: MIN_CONFIDENCE=58.0, volatile_mult=0.65 → requires raw_conf ≥ 89.2, which is achievable.
+
+**2. < 10 trades penalty is severe (-15 fitness)**
+Any parameter change that reduces signal frequency can trigger this cliff. Before widening VWAP_NEAR_BAND_PCT, raising MIN_CONFIDENCE, or increasing NO_TRADE_OPEN_MINUTES, check that the current strategy generates ≥ 10 trades. If you see fitness jumps of ~-15, this is almost certainly the cause.
+
+**3. Confidence weight changes must sum to 1.0**
+CONF_WEIGHT_RSI + CONF_WEIGHT_VWAP + CONF_WEIGHT_VOLUME + CONF_WEIGHT_MACD must equal 1.0 exactly. Changing one weight requires adjusting others. Violating this silently biases scores.
+
+**4. Baseline metric ranges (healthy intraday strategy)**
+- Sharpe: 1.0–3.0 is good; > 4.0 is suspicious (possible overfit)
+- Win rate: 45–65% is typical for these signals
+- Trades per 10-day window: 10–50 (< 10 = penalty, > 200 = penalty)
+- Max drawdown: < 8% is good, 8–15% is marginal, > 15% = -20 penalty
+
+---
+
 ## Your Job
 
 You are evolving a **pure-Python trading strategy** in one of two modes. No LLM calls — just math, indicators, and rules.
