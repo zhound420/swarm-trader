@@ -1,6 +1,6 @@
-# EXPERIMENT: vwap_band_restore
-# HYPOTHESIS: VWAP_NEAR_BAND_PCT=0.75 is overly tight — it likely reduces VWAP contributions enough to push trades below 10, triggering the -15 penalty. The historical best (fitness=3.09, trades=12) used 0.50. Restoring to 0.50 should bring trades back to 10-12 and recover from the trades<10 penalty that likely explains the -8.88 baseline.
-# CHANGE: VWAP_NEAR_BAND_PCT reverted from 0.75 to 0.50
+# EXPERIMENT: target_multiplier_2.2
+# HYPOTHESIS: With CONF_WEIGHT_RSI=0.35 driving RSI 30/70 extreme setups, these high-conviction reversals often carry momentum beyond 2x the stop. Raising TARGET_MULTIPLIER from 2.0 to 2.2 captures 10% more gain per winner without changing signal generation or trade count. Profit_factor, total_return, and Sharpe/Sortino should improve from larger upside captures on the same quality signals.
+# CHANGE: TARGET_MULTIPLIER raised from 2.0 to 2.2
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "vwap_band_restore"
-EXPERIMENT_HYPOTHESIS = "VWAP_NEAR_BAND_PCT=0.75 likely drops trades below 10, triggering the -15 penalty. Restoring to 0.50 should recover 2-3 VWAP-driven trades and eliminate the penalty."
-EXPERIMENT_CHANGE = "VWAP_NEAR_BAND_PCT reverted from 0.75 to 0.50"
+EXPERIMENT_NAME = "target_multiplier_2.2"
+EXPERIMENT_HYPOTHESIS = "With CONF_WEIGHT_RSI=0.35 driving RSI 30/70 extreme setups, these high-conviction reversals often carry momentum beyond 2x the stop. Raising TARGET_MULTIPLIER to 2.2 captures 10% more gain per winner without changing signal generation or trade count, improving profit_factor and Sharpe/Sortino."
+EXPERIMENT_CHANGE = "TARGET_MULTIPLIER raised from 2.0 to 2.2"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -44,7 +44,7 @@ VOLUME_STRONG_RATIO = 2.50      # >= 2.5x = strong conviction
 
 # Risk / sizing
 STOP_PCT = 0.010                # Default stop = 1.0% from entry
-TARGET_MULTIPLIER = 2.0         # R:R ratio (target = entry ± stop_dist * 2.0)
+TARGET_MULTIPLIER = 2.2         # R:R ratio (target = entry ± stop_dist * 2.2)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
 # Minimum confidence to emit a signal (0–100)
