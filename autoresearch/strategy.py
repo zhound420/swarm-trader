@@ -1,6 +1,6 @@
-# EXPERIMENT: widen_vwap_band
-# HYPOTHESIS: VWAP_NEAR_BAND_PCT=0.30 is too tight — price barely above/below VWAP still scores directional signal, creating noise trades in choppy markets. Widening to 0.50 requires stronger VWAP deviation before scoring, reducing low-quality signals and improving Sharpe/Sortino.
-# CHANGE: VWAP_NEAR_BAND_PCT increased from 0.30 to 0.50
+# EXPERIMENT: raise_min_confidence
+# HYPOTHESIS: VWAP_NEAR_BAND_PCT=0.50 reduces VWAP score contribution for many tickers, meaning borderline signals now pass on RSI+Volume+MACD alone with weaker scores. Raising MIN_CONFIDENCE from 53→58 filters these marginal signals, cutting trades from ~24 back to ~15-18, improving Sharpe by eliminating low-conviction noise trades.
+# CHANGE: MIN_CONFIDENCE increased from 53.0 to 58.0
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "widen_vwap_band"
-EXPERIMENT_HYPOTHESIS = "VWAP_NEAR_BAND_PCT=0.30 too tight — widening to 0.50 filters marginal near-VWAP signals"
-EXPERIMENT_CHANGE = "VWAP_NEAR_BAND_PCT increased from 0.30 to 0.50"
+EXPERIMENT_NAME = "raise_min_confidence"
+EXPERIMENT_HYPOTHESIS = "VWAP=0.50 weakens VWAP contribution; raising MIN_CONFIDENCE 53→58 filters marginal signals and improves Sharpe"
+EXPERIMENT_CHANGE = "MIN_CONFIDENCE increased from 53.0 to 58.0"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -48,7 +48,7 @@ TARGET_MULTIPLIER = 2.0         # R:R ratio (target = entry ± stop_dist * 2.0)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
 # Minimum confidence to emit a signal (0–100)
-MIN_CONFIDENCE = 53.0
+MIN_CONFIDENCE = 58.0
 
 # Confidence component weights (must sum to 1.0)
 CONF_WEIGHT_RSI = 0.30
