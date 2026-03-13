@@ -1,6 +1,6 @@
-# EXPERIMENT: faster_macd
-# HYPOTHESIS: Current MACD_FAST = 8 is too slow for 5-minute intraday bars, causing delayed momentum signals. Since MACD has 15% weight in confidence calculations and other indicators have been optimized for 5-minute timeframes (RSI_OVERBOUGHT 70→65, VWAP_NEAR_BAND_PCT 0.50%→0.75%), making MACD more responsive should improve signal timing. Reducing MACD_FAST from 8 to 6 periods (30 minutes vs 40 minutes) should provide more timely momentum signals while staying meaningful for intraday trading.
-# CHANGE: MACD_FAST from 8 to 6
+# EXPERIMENT: faster_macd_signal
+# HYPOTHESIS: Current MACD_SIGNAL_PERIOD = 9 is designed for daily charts and is too slow for 5-minute intraday bars. Following the successful MACD_FAST optimization (8→6), the signal line period of 9 means 45 minutes of smoothing, which delays crossover signals and histogram calculations that determine momentum scoring. Since MACD has 15% weight in confidence, reducing MACD_SIGNAL_PERIOD from 9 to 7 (35 minutes) should provide more timely crossover detection while maintaining sufficient smoothing, improving signal timing.
+# CHANGE: MACD_SIGNAL_PERIOD from 9 to 7
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "faster_macd"
-EXPERIMENT_HYPOTHESIS = "Current MACD_FAST = 8 is too slow for 5-minute intraday bars, causing delayed momentum signals. Since MACD has 15% weight in confidence calculations and other indicators have been optimized for 5-minute timeframes (RSI_OVERBOUGHT 70→65, VWAP_NEAR_BAND_PCT 0.50%→0.75%), making MACD more responsive should improve signal timing. Reducing MACD_FAST from 8 to 6 periods (30 minutes vs 40 minutes) should provide more timely momentum signals while staying meaningful for intraday trading."
-EXPERIMENT_CHANGE = "MACD_FAST from 8 to 6"
+EXPERIMENT_NAME = "faster_macd_signal"
+EXPERIMENT_HYPOTHESIS = "Current MACD_SIGNAL_PERIOD = 9 is designed for daily charts and is too slow for 5-minute intraday bars. Following the successful MACD_FAST optimization (8→6), the signal line period of 9 means 45 minutes of smoothing, which delays crossover signals and histogram calculations that determine momentum scoring. Since MACD has 15% weight in confidence, reducing MACD_SIGNAL_PERIOD from 9 to 7 (35 minutes) should provide more timely crossover detection while maintaining sufficient smoothing, improving signal timing."
+EXPERIMENT_CHANGE = "MACD_SIGNAL_PERIOD from 9 to 7"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -59,7 +59,7 @@ CONF_WEIGHT_MACD = 0.15
 # MACD parameters
 MACD_FAST = 6
 MACD_SLOW = 26
-MACD_SIGNAL_PERIOD = 9
+MACD_SIGNAL_PERIOD = 7
 
 # Regime multipliers — scale confidence based on market conditions
 REGIME_MULTIPLIER: dict[str, float] = {
