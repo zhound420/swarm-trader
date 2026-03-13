@@ -349,6 +349,7 @@ execute_trades.py       →  Places bracket orders on Alpaca with safety rails
 | 1:00 PM | `swarm-lunch` | Light session, range plays |
 | 3:00 PM | `swarm-late` | Final hour push, last major moves |
 | 3:45 PM | `swarm-flatten` | **CRITICAL**: Close risky/short positions before close |
+| 5:00 PM | `autoresearch-evolve` | Overnight strategy evolution (25 iterations) |
 
 ### Cron Setup Commands
 
@@ -513,6 +514,28 @@ openclaw cron add --name swarm-flatten \
 
 NO EXCEPTIONS. Risk management > profit.'
 ```
+
+**AutoResearch Evolution (5:00 PM, Mon-Fri):**
+
+```bash
+openclaw cron add --name autoresearch-evolve \
+  --cron "0 17 * * 1-5" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --session isolated \
+  --agent cassius \
+  --model "anthropic/claude-sonnet-4-6" \
+  --announce \
+  --channel telegram \
+  --to "YOUR_CHAT_ID" \
+  --message "Run autoresearch evolution loop.
+
+cd ~/path/to/swarm-trader && poetry run python autoresearch/evolve.py --iterations 25 --backtest-days 10 --agent claude
+
+When done, summarize: how many experiments ran, best fitness achieved, what changes were kept, and the top 3 findings."
+```
+
+Runs after market close. Cassius evolves `strategy.py` through 25 iterations against the last 10 trading days of cached data. Uses Sonnet as the outer orchestrator (Claude Code inside `evolve.py` handles strategy mutations). Results posted to Telegram.
 
 ### Swing Trading Schedule (alternative)
 
@@ -737,11 +760,14 @@ poetry run python autoresearch/backtest_fast.py --days 10
 # 2. Run the baseline backtest
 poetry run python autoresearch/backtest_fast.py
 
-# 3. Kick off autonomous evolution (50 iterations)
-poetry run python autoresearch/evolve.py --iterations 50
+# 3. Kick off autonomous evolution (25 iterations)
+poetry run python autoresearch/evolve.py --iterations 25
 
 # 4. Review experiment log
 cat autoresearch/experiments/log.jsonl | python3 -m json.tool
+
+# 5. Or let it run automatically (see Cron Setup Commands)
+# autoresearch-evolve cron runs at 5:00 PM PT Mon-Fri after market close
 ```
 
 ### Files
