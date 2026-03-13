@@ -1,6 +1,6 @@
-# EXPERIMENT: widen_vwap_band
-# HYPOTHESIS: VWAP_NEAR_BAND_PCT=0.30 is too tight — price barely above/below VWAP still scores directional signal, creating noise trades in choppy markets. Widening to 0.50 requires stronger VWAP deviation before scoring, reducing low-quality signals and improving Sharpe/Sortino.
-# CHANGE: VWAP_NEAR_BAND_PCT increased from 0.30 to 0.50
+# EXPERIMENT: tighten_stop_pct
+# HYPOTHESIS: Reducing STOP_PCT from 1.5% to 1.0% shrinks per-trade losses (left tail), reducing return variance and boosting Sharpe/Sortino without affecting trade count or win rate. Same 2:1 R:R is preserved; we just risk less per trade.
+# CHANGE: STOP_PCT decreased from 0.015 to 0.010
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "widen_vwap_band"
-EXPERIMENT_HYPOTHESIS = "VWAP_NEAR_BAND_PCT=0.30 too tight — widening to 0.50 filters marginal near-VWAP signals"
-EXPERIMENT_CHANGE = "VWAP_NEAR_BAND_PCT increased from 0.30 to 0.50"
+EXPERIMENT_NAME = "tighten_stop_pct"
+EXPERIMENT_HYPOTHESIS = "Tighter STOP_PCT=1.0% reduces per-trade loss magnitude, shrinking return variance and improving Sharpe/Sortino; R:R ratio preserved at 2:1"
+EXPERIMENT_CHANGE = "STOP_PCT decreased from 0.015 to 0.010"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -43,12 +43,12 @@ VOLUME_CONFIRM_RATIO = 1.50     # >= 1.5x to confirm signal
 VOLUME_STRONG_RATIO = 2.50      # >= 2.5x = strong conviction
 
 # Risk / sizing
-STOP_PCT = 0.015                # Default stop = 1.5% from entry
+STOP_PCT = 0.010                # Default stop = 1.0% from entry
 TARGET_MULTIPLIER = 2.0         # R:R ratio (target = entry ± stop_dist * 2.0)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
 # Minimum confidence to emit a signal (0–100)
-MIN_CONFIDENCE = 53.0
+MIN_CONFIDENCE = 58.0
 
 # Confidence component weights (must sum to 1.0)
 CONF_WEIGHT_RSI = 0.30

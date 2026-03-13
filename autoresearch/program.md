@@ -6,13 +6,19 @@
 
 ## Your Job
 
-You are evolving a **pure-Python day trading strategy**. No LLM calls — just math, indicators, and rules. The goal is to maximize risk-adjusted returns on historical intraday data.
+You are evolving a **pure-Python trading strategy** in one of two modes. No LLM calls — just math, indicators, and rules.
+
+The `MODE` variable at the top of `strategy.py` controls which logic path is active:
+- `MODE = 'day'`  — intraday 5-min bars, VWAP/RSI/MACD signals, flatten at close
+- `MODE = 'swing'` — daily bars, moving average crossovers + RSI trend, overnight holding
+
+The evolution system (`evolve.py`) passes `--mode day|swing` to the backtester, which passes `mode` via `market_context`. Your changes to `strategy.py` should match the current `MODE`.
 
 ## Files
 
 | File | Role | Who modifies |
 |------|------|-------------|
-| `strategy.py` | The strategy — signals, indicators, parameters. **This is the only file you touch.** | You (the agent) |
+| `strategy.py` | The strategy — signals, indicators, parameters, MODE. **This is the only file you touch.** | You (the agent) |
 | `backtest_fast.py` | Runs strategy.py against historical data, outputs fitness metrics. Fixed. | Nobody |
 | `evolve.py` | The loop that orchestrates you. Fixed. | Nobody |
 | `program.md` | These instructions. | Human |
@@ -29,54 +35,81 @@ You are evolving a **pure-Python day trading strategy**. No LLM calls — just m
 
 ## Fitness Metric
 
-The primary metric is a **composite score** (higher is better):
+### Day Mode Fitness (Sharpe/win-rate focused)
 
 ```
 fitness = (sharpe_ratio * 0.35) + (sortino_ratio * 0.25) + (total_return_pct * 0.20) + (win_rate * 0.10) + (profit_factor * 0.10)
 ```
 
-All components are normalized. The composite balances risk-adjusted returns (Sharpe/Sortino), absolute performance (total return), and consistency (win rate, profit factor).
+Day mode balances risk-adjusted returns, absolute performance, and consistency. High trade count and win rate matter because there are many intraday opportunities.
 
-**Secondary constraints** — violations penalize the score:
-- Max drawdown > 15% → -20 penalty
-- Win rate < 30% → -10 penalty  
-- Fewer than 10 trades in backtest period → -15 penalty (not enough signal)
-- More than 200 trades → -5 penalty (overtrading)
+**Day penalties:**
+- Max drawdown > 15% → -20
+- Win rate < 30% → -10
+- Fewer than 10 trades → -15 (too little signal)
+- More than 200 trades → -5 (overtrading)
+
+### Swing Mode Fitness (return/drawdown focused)
+
+```
+fitness = (total_return_pct * 0.35) + (sortino_ratio * 0.25) + (sharpe_ratio * 0.20) + (profit_factor * 0.12) + (win_rate * 0.08)
+```
+
+Swing mode prioritizes capturing multi-day trends (total return) and avoiding large drawdowns (overnight gap risk). Fewer trades are expected — 3+ in 30 days is fine.
+
+**Swing penalties:**
+- Max drawdown > 20% → -25 (overnight gaps amplify losses)
+- Max drawdown 15–20% → -10
+- Win rate < 25% → -10
+- Fewer than 3 trades → -15
+- More than 100 trades → -5
 
 ## Strategy Rules (Immutable)
 
-These are hard constraints the strategy must always respect:
+These are hard constraints that always apply regardless of mode:
 - Every entry MUST have a stop loss and profit target
 - Position size must not exceed 15% of portfolio
+
+**Day mode only:**
 - Must respect daily loss limit of 3% (circuit breaker)
 - No holding overnight (all positions close by 3:45 PM ET)
-- Only trade tickers in the provided universe (liquid mega-cap + momentum)
+- Only trade liquid mega-cap + momentum tickers
+
+**Swing mode only:**
+- Positions may be held overnight and across multiple days
+- Use SWING_UNIVERSE tickers (includes leveraged ETFs, moonshots)
+- No intraday time-of-day filters
 
 ## What You Can Change in strategy.py
 
-**Parameters:**
+**Mode selection:**
+- Set `MODE = 'day'` or `MODE = 'swing'` to evolve the appropriate logic path
+
+**Day trading parameters (MODE = 'day'):**
 - RSI thresholds, VWAP deviation bands, volume multipliers
-- Stop loss percentage, target multiplier (R:R ratio)
-- Confidence thresholds, entry filters
-- Position sizing logic
-- Time-of-day filters (e.g., avoid first 15 min, power hour only)
+- Stop loss percentage (`STOP_PCT`), target multiplier (`TARGET_MULTIPLIER`)
+- Confidence thresholds (`MIN_CONFIDENCE`), confidence weights (`CONF_WEIGHT_*`)
+- Time-of-day filters (`NO_TRADE_OPEN_MINUTES`, `MARKET_CLOSE_CUTOFF`)
+- Regime multipliers (`REGIME_MULTIPLIER`)
+- MACD periods (`MACD_FAST`, `MACD_SLOW`, `MACD_SIGNAL_PERIOD`)
 
-**Indicator logic:**
+**Swing trading parameters (MODE = 'swing'):**
+- Moving average periods (`SMA_FAST`, `SMA_SLOW`)
+- Trend strength threshold (`TREND_STRENGTH_THRESHOLD`)
+- Swing RSI thresholds (`SWING_RSI_OVERSOLD`, `SWING_RSI_OVERBOUGHT`)
+- Swing stop/target (`SWING_STOP_PCT`, `SWING_TARGET_MULTIPLIER`)
+- Swing confidence threshold (`SWING_MIN_CONFIDENCE`)
+- Swing confidence weights (`SWING_CONF_WEIGHT_*`)
+
+**Indicator logic (both modes):**
 - Add/remove/modify technical indicators
-- Change indicator periods (RSI 14 → RSI 9, etc.)
-- Combine indicators differently
-- Add new derived signals (e.g., VWAP slope, volume acceleration)
+- Change indicator periods (RSI 14 → RSI 9, SMA 50 → SMA 100, etc.)
+- Add new derived signals (e.g., ATR-based stops for swing, VWAP slope for day)
 
-**Signal rules:**
+**Signal rules (both modes):**
 - Entry conditions (what triggers a buy/sell)
-- Exit conditions beyond stop/target (trailing stops, time exits)
 - Regime filters (when to trade vs sit out)
 - Multi-timeframe confirmation
-
-**Architecture:**
-- Strategy pattern (trend-following, mean-reversion, breakout, hybrid)
-- Number of simultaneous positions
-- Scaling in/out logic
 
 ## How to Think
 

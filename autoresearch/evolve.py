@@ -298,7 +298,7 @@ def _syntax_check(path: Path) -> tuple[bool, str]:
 # Backtest runner
 # ---------------------------------------------------------------------------
 
-def _run_backtest(backtest_days: int, capital: float, quiet: bool = False) -> tuple[bool, dict]:
+def _run_backtest(backtest_days: int, capital: float, quiet: bool = False, mode: str = "day") -> tuple[bool, dict]:
     """
     Run backtest_fast.py as a subprocess.
     Returns (success, metrics_dict).
@@ -308,6 +308,7 @@ def _run_backtest(backtest_days: int, capital: float, quiet: bool = False) -> tu
         str(BACKTEST_SCRIPT),
         "--days", str(backtest_days),
         "--capital", str(int(capital)),
+        "--mode", mode,
     ]
     if quiet:
         cmd.append("--quiet")
@@ -415,6 +416,10 @@ def main() -> int:
         description="Autonomous trading strategy evolution loop"
     )
     parser.add_argument(
+        "--mode", type=str, default="day", choices=["day", "swing"],
+        help="Trading mode to evolve: day (intraday, default) or swing (daily bars, multi-day)",
+    )
+    parser.add_argument(
         "--iterations", type=int, default=50,
         help="Number of evolution iterations (default: 50)",
     )
@@ -424,8 +429,8 @@ def main() -> int:
         help="Coding agent to use (default: claude)",
     )
     parser.add_argument(
-        "--backtest-days", type=int, default=10,
-        help="Trading days per backtest (default: 10)",
+        "--backtest-days", type=int, default=None,
+        help="Trading days per backtest (default: 10 for day, 30 for swing)",
     )
     parser.add_argument(
         "--capital", type=float, default=100_000.0,
@@ -437,6 +442,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Default backtest days depends on mode
+    if args.backtest_days is None:
+        args.backtest_days = 30 if args.mode == "swing" else 10
+
     agent_fn = AGENTS.get(args.agent)
     if agent_fn is None:
         print(f"ERROR: Unknown agent '{args.agent}'. Choose from: {list(AGENTS)}", file=sys.stderr)
@@ -445,6 +454,7 @@ def main() -> int:
     print(f"\n{'='*60}", file=sys.stderr)
     print(f"AUTORESEARCH — Trading Strategy Evolution", file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
+    print(f"Mode:           {args.mode}", file=sys.stderr)
     print(f"Agent:          {args.agent}", file=sys.stderr)
     print(f"Iterations:     {args.iterations}", file=sys.stderr)
     print(f"Backtest days:  {args.backtest_days}", file=sys.stderr)
@@ -455,7 +465,7 @@ def main() -> int:
 
     # --- Baseline backtest ---
     print("[0/baseline] Running baseline backtest...", file=sys.stderr)
-    ok, baseline_metrics = _run_backtest(args.backtest_days, args.capital, quiet=args.quiet)
+    ok, baseline_metrics = _run_backtest(args.backtest_days, args.capital, quiet=args.quiet, mode=args.mode)
     if not ok:
         print(f"ERROR: Baseline backtest failed: {baseline_metrics.get('error')}", file=sys.stderr)
         return 1
@@ -554,8 +564,8 @@ def main() -> int:
         diff = _compute_diff(STRATEGY_BACKUP_PATH, STRATEGY_PATH)
 
         # 8. Run backtest
-        print(f"  [backtest] Running {args.backtest_days}-day backtest...", file=sys.stderr)
-        bt_ok, metrics = _run_backtest(args.backtest_days, args.capital, quiet=args.quiet)
+        print(f"  [backtest] Running {args.backtest_days}-day {args.mode} backtest...", file=sys.stderr)
+        bt_ok, metrics = _run_backtest(args.backtest_days, args.capital, quiet=args.quiet, mode=args.mode)
 
         if not bt_ok:
             error_msg = metrics.get("error", "unknown error")
@@ -614,6 +624,7 @@ def main() -> int:
             "experiment_id": experiment_id,
             "timestamp": timestamp,
             "iteration": iteration,
+            "mode": args.mode,
             "hypothesis": hypothesis,
             "diff": diff,
             "fitness_score": new_fitness,

@@ -546,8 +546,29 @@ For longer-term position trading instead of intraday:
 | 6:30 AM | Morning analysis | Pre-market multi-agent analysis |
 | 9:00 AM | Portfolio check | Quick P/L report |
 | 4:30 PM | Evening research | Post-close deep analysis |
+| 5:00 PM | `autoresearch-evolve` | Swing strategy evolution (25 iterations, `--mode swing`) |
 
 Swing mode uses `gather_data.py --mode swing` (fundamentals, news, insider trades) instead of intraday technicals. See [PLAYBOOK.md](./PLAYBOOK.md) for swing cron setup.
+
+**AutoResearch swing evolution cron:**
+
+```bash
+openclaw cron add --name autoresearch-evolve-swing \
+  --cron "0 17 * * 1-5" \
+  --tz "America/Los_Angeles" \
+  --exact \
+  --session isolated \
+  --agent cassius \
+  --model "anthropic/claude-sonnet-4-6" \
+  --announce \
+  --channel telegram \
+  --to "YOUR_CHAT_ID" \
+  --message "Run autoresearch swing evolution loop.
+
+cd ~/path/to/swarm-trader && poetry run python autoresearch/evolve.py --mode swing --iterations 25 --backtest-days 30 --agent claude
+
+When done, summarize: how many experiments ran, best fitness achieved, what swing strategy changes were kept (MA periods, stop %, trend thresholds), and the top 3 findings."
+```
 
 ### Managing Crons
 

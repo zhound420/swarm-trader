@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-backtest_fast.py — Deterministic intraday backtester for strategy.py.
+backtest_fast.py — Deterministic backtester for strategy.py.
 
-Fetches (and caches) historical 5-min bars from Alpaca, then simulates
-bracket-order trading against strategy.generate_signals() bar-by-bar.
+Supports two modes:
+  --mode day   (default) — 5-min bars, intraday simulation, flatten at 3:45 PM
+  --mode swing           — daily bars, multi-day holding, SWING_UNIVERSE tickers
 
 Usage:
     poetry run python autoresearch/backtest_fast.py
     poetry run python autoresearch/backtest_fast.py --days 20 --capital 50000
     poetry run python autoresearch/backtest_fast.py --ticker-filter NVDA,AAPL
     poetry run python autoresearch/backtest_fast.py --days 5 --quiet
+    poetry run python autoresearch/backtest_fast.py --mode swing --days 30
 
 Output: JSON to stdout (for evolve.py to parse).
 """
@@ -57,11 +59,20 @@ CIRCUIT_BREAKER_LOSS_PCT = 0.03 # Stop new entries when daily loss >= 3%
 FLATTEN_TIME = "15:45"          # Force-close all positions at this ET time
 MAX_CONCURRENT_POSITIONS = 5    # Max simultaneous open positions
 
-# Day trading universe (mirrors src/config.py)
+# Day trading universe (mirrors src/config.py DAY_TRADE_UNIVERSE)
 DAY_TRADE_TICKERS = [
     "NVDA", "AVGO", "TSM", "AMD", "MSFT", "AAPL", "META", "GOOGL", "AMZN",
     "PLTR", "COIN", "MSTR", "RKLB",
     "SPY", "QQQ",
+]
+
+# Swing trading universe (mirrors src/config.py SWING_UNIVERSE)
+SWING_TICKERS = [
+    "NVDA", "AVGO", "SMCI", "TSM",         # AI Infrastructure
+    "TQQQ", "SOXL", "UPRO",                 # Leveraged ETFs
+    "PLTR", "MSTR", "COIN", "RKLB",         # Momentum
+    "IONQ", "RGTI", "SOUN", "LUNR",         # Moonshots
+    "SPY",                                   # Broad market reference
 ]
 
 
@@ -533,6 +544,200 @@ def simulate_day(
 
 
 # ---------------------------------------------------------------------------
+# Swing simulation (daily bars, multi-day holding)
+# ---------------------------------------------------------------------------
+
+def simulate_swing(
+    trading_days: list[str],
+    daily_bars_by_ticker: dict[str, list[dict]],
+    initial_capital: float,
+    strategy_module: Any,
+    quiet: bool = False,
+) -> tuple[list[float], list[Trade]]:
+    """
+    Simulate swing trading over `trading_days` using daily bars.
+
+    Key differences from intraday:
+    - One bar per ticker per day (daily OHLCV)
+    - Positions carry overnight / multi-day
+    - No flatten at 3:45 PM
+    - Signals generated from history of daily bars up to each day
+
+    Returns (daily_portfolio_values, all_trades).
+    """
+    # Build per-ticker daily bar lookup for fast access
+    bars_by_ticker_by_date: dict[str, dict[str, dict]] = {}
+    for ticker, bars in daily_bars_by_ticker.items():
+        bars_by_ticker_by_date[ticker] = {b["t"][:10]: b for b in bars}
+
+    positions: dict[str, Position] = {}
+    cash = initial_capital
+    daily_values: list[float] = [initial_capital]
+    all_trades: list[Trade] = []
+
+    for day in trading_days:
+        # Current bar for each ticker on this day
+        current_bars: dict[str, dict] = {}
+        for ticker in daily_bars_by_ticker:
+            bar = bars_by_ticker_by_date.get(ticker, {}).get(day)
+            if bar:
+                current_bars[ticker] = bar
+
+        if not current_bars:
+            # No data for this day — carry equity forward
+            equity = cash + sum(
+                p.cost_basis + _calc_pnl(p, p.entry_price)  # rough: value at entry
+                for p in positions.values()
+            )
+            daily_values.append(equity)
+            continue
+
+        # --- 1. Check existing positions for stops/targets ---
+        for ticker in list(positions.keys()):
+            if ticker not in current_bars:
+                continue
+            pos = positions[ticker]
+            bar = current_bars[ticker]
+
+            fill_price, exit_reason = _check_bracket_fill(pos, bar)
+            if fill_price is not None and exit_reason is not None:
+                pnl = _calc_pnl(pos, fill_price)
+                pnl_pct = pnl / pos.cost_basis * 100.0
+                all_trades.append(Trade(
+                    ticker=ticker,
+                    direction=pos.direction,
+                    shares=pos.shares,
+                    entry_price=pos.entry_price,
+                    exit_price=fill_price,
+                    entry_time=pos.entry_time,
+                    exit_time=day,
+                    exit_reason=exit_reason,
+                    pnl=pnl,
+                    pnl_pct=pnl_pct,
+                ))
+                cash += pos.cost_basis + pnl
+                del positions[ticker]
+
+        # --- 2. Calculate current equity ---
+        current_equity = cash + sum(
+            p.cost_basis + _calc_pnl(p, float(current_bars[t]["c"]))
+            for t, p in positions.items()
+            if t in current_bars
+        )
+
+        # --- 3. Build bars history up to (and including) this day per ticker ---
+        bars_history: dict[str, list[dict]] = {}
+        for ticker, bars in daily_bars_by_ticker.items():
+            hist = [b for b in bars if b["t"][:10] <= day]
+            if hist:
+                bars_history[ticker] = hist
+
+        # --- 4. Compute SPY daily change for market context ---
+        spy_daily_chg = 0.0
+        spy_hist = bars_history.get("SPY", [])
+        if len(spy_hist) >= 2:
+            prev_close = float(spy_hist[-2]["c"])
+            today_close = float(spy_hist[-1]["c"])
+            spy_daily_chg = (today_close - prev_close) / prev_close * 100.0 if prev_close else 0.0
+
+        # Build avg_volume_20d context
+        market_context: dict = {"mode": "swing", "spy_daily_change_pct": spy_daily_chg}
+        for ticker, bars in daily_bars_by_ticker.items():
+            prev_bars = [b for b in bars if b["t"][:10] < day]
+            if len(prev_bars) >= 2:
+                recent_20 = prev_bars[-20:]
+                market_context[f"{ticker}_avg_volume_20d"] = sum(
+                    float(b.get("v", 0)) for b in recent_20
+                ) / len(recent_20)
+
+        # --- 5. Generate swing signals (exclude SPY from tradeable universe) ---
+        tradeable_bars = {t: b for t, b in bars_history.items() if t != "SPY"}
+        try:
+            signals = strategy_module.generate_signals(tradeable_bars, market_context)
+        except Exception:
+            signals = []
+
+        # --- 6. Process new signals ---
+        for sig in sorted(signals, key=lambda s: s.confidence, reverse=True):
+            ticker = sig.ticker
+
+            # Skip if already in a position for this ticker
+            if ticker in positions:
+                continue
+
+            # Cap concurrent positions (same as day trading)
+            if len(positions) >= MAX_CONCURRENT_POSITIONS:
+                break
+
+            position_value = min(current_equity * 0.15, cash * 0.95)
+            if position_value < 100:
+                continue
+
+            entry_fill = _fill_price(sig.entry_price, sig.direction, "entry")
+            shares = max(1, int(position_value / entry_fill))
+            cost = shares * entry_fill
+
+            if cost > cash:
+                shares = max(1, int(cash * 0.95 / entry_fill))
+                cost = shares * entry_fill
+                if cost > cash or shares < 1:
+                    continue
+
+            positions[ticker] = Position(
+                ticker=ticker,
+                direction=sig.direction,
+                shares=shares,
+                entry_price=entry_fill,
+                stop_price=sig.stop_price,
+                target_price=sig.target_price,
+                entry_time=day,
+                cost_basis=cost,
+            )
+            cash -= cost
+
+        # --- 7. Record end-of-day equity ---
+        eod_equity = cash + sum(
+            p.cost_basis + _calc_pnl(p, float(current_bars[t]["c"]))
+            for t, p in positions.items()
+            if t in current_bars
+        )
+        daily_values.append(eod_equity)
+
+        if not quiet:
+            day_pnl = eod_equity - daily_values[-2]
+            print(
+                f"  {day}  P&L: ${day_pnl:+,.0f}  "
+                f"positions: {len(positions)}  equity: ${eod_equity:,.0f}",
+                file=sys.stderr,
+            )
+
+    # --- Close any remaining open positions at last available price ---
+    for ticker, pos in list(positions.items()):
+        bars = daily_bars_by_ticker.get(ticker, [])
+        if bars:
+            exit_price = _fill_price(float(bars[-1]["c"]), pos.direction, "exit")
+        else:
+            exit_price = pos.entry_price
+        pnl = _calc_pnl(pos, exit_price)
+        pnl_pct = pnl / pos.cost_basis * 100.0
+        all_trades.append(Trade(
+            ticker=ticker,
+            direction=pos.direction,
+            shares=pos.shares,
+            entry_price=pos.entry_price,
+            exit_price=exit_price,
+            entry_time=pos.entry_time,
+            exit_time="EOP",
+            exit_reason="end_of_period",
+            pnl=pnl,
+            pnl_pct=pnl_pct,
+        ))
+        cash += pos.cost_basis + pnl
+
+    return daily_values, all_trades
+
+
+# ---------------------------------------------------------------------------
 # Metrics calculation
 # ---------------------------------------------------------------------------
 
@@ -540,8 +745,13 @@ def compute_metrics(
     daily_values: list[float],
     all_trades: list[Trade],
     initial_capital: float,
+    mode: str = "day",
 ) -> dict:
-    """Compute all performance metrics and composite fitness score."""
+    """Compute all performance metrics and composite fitness score.
+
+    mode: "day" uses Sharpe/win-rate-weighted fitness
+          "swing" uses total-return/drawdown-weighted fitness
+    """
     import math
 
     if not daily_values or len(daily_values) < 2:
@@ -595,16 +805,27 @@ def compute_metrics(
     avg_win = gross_profit / len(wins) if wins else 0.0
     avg_loss = gross_loss / len(losses) if losses else 0.0
 
-    # Composite fitness score (per program.md)
-    fitness = _compute_fitness(
-        sharpe=sharpe,
-        sortino=sortino_capped,
-        total_return_pct=total_return_pct,
-        win_rate=win_rate,
-        profit_factor=profit_factor,
-        max_drawdown_pct=abs(max_dd_pct),
-        num_trades=num_trades,
-    )
+    # Composite fitness score — formula differs by mode
+    if mode == "swing":
+        fitness = _compute_fitness_swing(
+            sharpe=sharpe,
+            sortino=sortino_capped,
+            total_return_pct=total_return_pct,
+            win_rate=win_rate,
+            profit_factor=profit_factor,
+            max_drawdown_pct=abs(max_dd_pct),
+            num_trades=num_trades,
+        )
+    else:
+        fitness = _compute_fitness(
+            sharpe=sharpe,
+            sortino=sortino_capped,
+            total_return_pct=total_return_pct,
+            win_rate=win_rate,
+            profit_factor=profit_factor,
+            max_drawdown_pct=abs(max_dd_pct),
+            num_trades=num_trades,
+        )
 
     return {
         "total_return_pct": round(total_return_pct, 4),
@@ -655,6 +876,51 @@ def _compute_fitness(
     if num_trades < 10:
         fitness -= 15.0
     if num_trades > 200:
+        fitness -= 5.0
+
+    return fitness
+
+
+def _compute_fitness_swing(
+    sharpe: float,
+    sortino: float,
+    total_return_pct: float,
+    win_rate: float,
+    profit_factor: float,
+    max_drawdown_pct: float,
+    num_trades: int,
+) -> float:
+    """Swing fitness formula — weights total return and drawdown control more heavily.
+
+    Swing cares more about:
+    - Total return (capturing multi-day trends)
+    - Max drawdown (overnight gap risk amplifies losses)
+    - Sortino (downside protection matters for swing holds)
+
+    Day trading cares more about Sharpe and win rate (more trades, tighter feedback).
+    """
+    sharpe = max(-5.0, min(10.0, sharpe))
+    sortino = max(-5.0, min(20.0, sortino))
+    profit_factor = min(10.0, profit_factor)
+
+    fitness = (
+        total_return_pct * 0.35
+        + sortino * 0.25
+        + sharpe * 0.20
+        + profit_factor * 0.12
+        + win_rate * 0.08
+    )
+
+    # Penalties — stricter drawdown for swing (overnight gaps hurt more)
+    if max_drawdown_pct > 20.0:
+        fitness -= 25.0
+    elif max_drawdown_pct > 15.0:
+        fitness -= 10.0
+    if win_rate < 0.25:
+        fitness -= 10.0
+    if num_trades < 3:
+        fitness -= 15.0  # swing needs fewer trades — 3+ in 30 days is reasonable
+    if num_trades > 100:
         fitness -= 5.0
 
     return fitness
@@ -806,11 +1072,68 @@ def run_backtest(
                 file=sys.stderr,
             )
 
-    metrics = compute_metrics(daily_values, all_trades, initial_capital)
+    metrics = compute_metrics(daily_values, all_trades, initial_capital, mode="day")
 
     if not quiet:
         print(
             f"\n[backtest] Done. {len(trading_days)} days, {metrics['num_trades']} trades, "
+            f"return={metrics['total_return_pct']:+.2f}%, "
+            f"sharpe={metrics['sharpe_ratio']:.2f}, "
+            f"fitness={metrics['fitness']:.4f}",
+            file=sys.stderr,
+        )
+
+    return metrics
+
+
+def run_swing_backtest(
+    tickers: list[str],
+    trading_days: list[str],
+    initial_capital: float,
+    strategy_module: Any,
+    quiet: bool = False,
+) -> dict:
+    """
+    Run a swing backtest over `trading_days` using daily bars.
+    Returns the metrics dict.
+    """
+    if not ALPACA_HEADERS["APCA-API-KEY-ID"]:
+        print("ERROR: ALPACA_API_KEY not set in environment", file=sys.stderr)
+        sys.exit(1)
+
+    # Fetch daily bars with lookback for SMA_SLOW (50-day needs ~70 cal days before start)
+    first_day = trading_days[0]
+    lookback_start = (datetime.strptime(first_day, "%Y-%m-%d") - timedelta(days=90)).strftime("%Y-%m-%d")
+    last_day = trading_days[-1]
+
+    if not quiet:
+        print(f"[swing] Fetching daily bars for {len(tickers)} tickers...", file=sys.stderr)
+
+    daily_bars_by_ticker: dict[str, list[dict]] = {}
+    for ticker in tickers:
+        try:
+            daily_bars_by_ticker[ticker] = fetch_daily_bars(ticker, lookback_start, last_day)
+        except Exception as e:
+            if not quiet:
+                print(f"  [WARN] {ticker} daily bars: {e}", file=sys.stderr)
+            daily_bars_by_ticker[ticker] = []
+
+    if not quiet:
+        print(f"[swing] Simulating {len(trading_days)} trading days...", file=sys.stderr)
+
+    daily_values, all_trades = simulate_swing(
+        trading_days=trading_days,
+        daily_bars_by_ticker=daily_bars_by_ticker,
+        initial_capital=initial_capital,
+        strategy_module=strategy_module,
+        quiet=quiet,
+    )
+
+    metrics = compute_metrics(daily_values, all_trades, initial_capital, mode="swing")
+
+    if not quiet:
+        print(
+            f"\n[swing] Done. {len(trading_days)} days, {metrics['num_trades']} trades, "
             f"return={metrics['total_return_pct']:+.2f}%, "
             f"sharpe={metrics['sharpe_ratio']:.2f}, "
             f"fitness={metrics['fitness']:.4f}",
@@ -829,8 +1152,12 @@ def main() -> int:
         description="Fast deterministic backtester for autoresearch/strategy.py"
     )
     parser.add_argument(
-        "--days", type=int, default=10,
-        help="Number of trading days to backtest (default: 10)",
+        "--mode", type=str, default="day", choices=["day", "swing"],
+        help="Trading mode: day (5-min intraday, default) or swing (daily bars, multi-day hold)",
+    )
+    parser.add_argument(
+        "--days", type=int, default=None,
+        help="Number of trading days to backtest (default: 10 for day, 30 for swing)",
     )
     parser.add_argument(
         "--capital", type=float, default=100_000.0,
@@ -838,7 +1165,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--ticker-filter", type=str, default="",
-        help="Comma-separated subset of tickers to trade (default: all DAY_TRADE_TICKERS)",
+        help="Comma-separated subset of tickers to trade (default: universe for selected mode)",
     )
     parser.add_argument(
         "--strategy", type=str, default="",
@@ -850,13 +1177,22 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Default days depends on mode
+    if args.days is None:
+        args.days = 30 if args.mode == "swing" else 10
+
     # Resolve tickers
     if args.ticker_filter:
         tickers = [t.strip().upper() for t in args.ticker_filter.split(",") if t.strip()]
-        # Always include SPY and QQQ for regime detection
-        for anchor in ("SPY", "QQQ"):
-            if anchor not in tickers:
-                tickers.append(anchor)
+        if args.mode == "day":
+            for anchor in ("SPY", "QQQ"):
+                if anchor not in tickers:
+                    tickers.append(anchor)
+        else:
+            if "SPY" not in tickers:
+                tickers.append("SPY")
+    elif args.mode == "swing":
+        tickers = list(SWING_TICKERS)
     else:
         tickers = list(DAY_TRADE_TICKERS)
 
@@ -875,20 +1211,28 @@ def main() -> int:
     trading_days = get_trading_days(args.days)
 
     if not args.quiet:
-        print(
-            f"[backtest] Tickers: {', '.join(t for t in tickers if t not in ('SPY','QQQ'))}",
-            file=sys.stderr,
-        )
+        tradeable = [t for t in tickers if t not in ("SPY", "QQQ")]
+        print(f"[backtest] Mode: {args.mode}", file=sys.stderr)
+        print(f"[backtest] Tickers: {', '.join(tradeable)}", file=sys.stderr)
         print(f"[backtest] Days: {trading_days[0]} → {trading_days[-1]}", file=sys.stderr)
         print(f"[backtest] Capital: ${args.capital:,.0f}", file=sys.stderr)
 
-    metrics = run_backtest(
-        tickers=tickers,
-        trading_days=trading_days,
-        initial_capital=args.capital,
-        strategy_module=strategy_module,
-        quiet=args.quiet,
-    )
+    if args.mode == "swing":
+        metrics = run_swing_backtest(
+            tickers=tickers,
+            trading_days=trading_days,
+            initial_capital=args.capital,
+            strategy_module=strategy_module,
+            quiet=args.quiet,
+        )
+    else:
+        metrics = run_backtest(
+            tickers=tickers,
+            trading_days=trading_days,
+            initial_capital=args.capital,
+            strategy_module=strategy_module,
+            quiet=args.quiet,
+        )
 
     # Output JSON to stdout (for evolve.py to parse)
     print(json.dumps(metrics, indent=2))
