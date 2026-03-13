@@ -341,7 +341,7 @@ execute_trades.py       →  Places bracket orders on Alpaca with safety rails
 
 5 runs during market hours, Mon-Fri:
 
-| Time (PT) | Job | Purpose |
+| Time (ET) | Job | Purpose |
 |---|---|---|
 | 9:00 AM | `swarm-portfolio-check` | Daily P/L report, portfolio health |
 | 9:30 AM | `swarm-open` | Market open — scan + aggressive entries |
@@ -360,7 +360,7 @@ Copy-paste these to set up the full day trading schedule. Adjust `--agent`, `--m
 ```bash
 openclaw cron add --name swarm-portfolio-check \
   --cron "0 9 * * *" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --session isolated \
   --agent my-agent \
@@ -380,7 +380,7 @@ Report: total equity, daily P&L, top positions, any big movers (>5% swing)."
 ```bash
 openclaw cron add --name swarm-open \
   --cron "30 9 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --session isolated \
   --agent my-agent \
@@ -413,7 +413,7 @@ openclaw cron add --name swarm-open \
 ```bash
 openclaw cron add --name swarm-midmorning \
   --cron "0 11 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --session isolated \
   --agent my-agent \
@@ -441,7 +441,7 @@ openclaw cron add --name swarm-midmorning \
 ```bash
 openclaw cron add --name swarm-lunch \
   --cron "0 13 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --session isolated \
   --agent my-agent \
@@ -465,7 +465,7 @@ openclaw cron add --name swarm-lunch \
 ```bash
 openclaw cron add --name swarm-late \
   --cron "0 15 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --session isolated \
   --agent my-agent \
@@ -489,7 +489,7 @@ openclaw cron add --name swarm-late \
 ```bash
 openclaw cron add --name swarm-flatten \
   --cron "45 15 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --session isolated \
   --agent my-agent \
@@ -520,7 +520,7 @@ NO EXCEPTIONS. Risk management > profit.'
 ```bash
 openclaw cron add --name autoresearch-evolve \
   --cron "0 17 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --session isolated \
   --agent my-agent \
@@ -541,7 +541,7 @@ Runs after market close. The agent evolves `strategy.py` through 50 iterations a
 
 For longer-term position trading instead of intraday:
 
-| Time (PT) | Job | Purpose |
+| Time (ET) | Job | Purpose |
 |---|---|---|
 | 6:30 AM | Morning analysis | Pre-market multi-agent analysis |
 | 9:00 AM | Portfolio check | Quick P/L report |
@@ -555,7 +555,7 @@ Swing mode uses `gather_data.py --mode swing` (fundamentals, news, insider trade
 ```bash
 openclaw cron add --name autoresearch-evolve-swing \
   --cron "0 17 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --session isolated \
   --agent my-agent \

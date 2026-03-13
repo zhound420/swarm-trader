@@ -585,7 +585,7 @@ Lightweight check — just reads positions from Alpaca and reports P/L. No analy
 ```bash
 openclaw cron add alpaca-portfolio \
   --cron "0 9 * * *" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --model google/gemini-2.5-flash \
   --session isolated \
@@ -602,7 +602,7 @@ Runs multi-agent analysis on all holdings. No execution — dry run only.
 ```bash
 openclaw cron add morning-analysis \
   --cron "30 6 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --model google/gemini-2.5-flash \
   --session isolated \
@@ -620,7 +620,7 @@ Additional analysis windows for intraday monitoring:
 # Midday (12 PM)
 openclaw cron add midday-scan \
   --cron "0 12 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --model google/gemini-2.5-flash \
   --session isolated \
@@ -629,7 +629,7 @@ openclaw cron add midday-scan \
 # Afternoon (2 PM)
 openclaw cron add afternoon-scan \
   --cron "0 14 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --model google/gemini-2.5-flash \
   --session isolated \
@@ -643,7 +643,7 @@ Deeper analysis after market close, when all daily data is final:
 ```bash
 openclaw cron add evening-research \
   --cron "30 16 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --model google/gemini-2.5-flash \
   --session isolated \
@@ -936,7 +936,7 @@ Day traders must exit speculative positions before market close to avoid overnig
 # In your cron at 3:45 PM ET (15:45 ET = 12:45 PT)
 openclaw cron add flatten-eod \
   --cron "45 12 * * 1-5" \
-  --tz "America/Los_Angeles" \
+  --tz "America/New_York" \
   --exact \
   --message "Flatten all open day trade positions. cd ~/projects/swarm-trader && poetry run python execute_trades.py --flatten. Report what was closed."
 ```
@@ -945,7 +945,7 @@ For swing positions (NVDA core, etc.) that you want to hold overnight, do NOT ca
 
 ### Intraday Cron Schedule (Day Trading Mode)
 
-| Job | Schedule (PT) | Purpose |
+| Job | Schedule (ET) | Purpose |
 |---|---|---|
 | `premarket-scan` | Mon-Fri 5:00 AM | Gather intraday data, run `market_regime + apex` on day trade universe |
 | `open-watch` | Mon-Fri 6:35 AM | 5 min after open — first signals, execute if clear setups |
