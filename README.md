@@ -700,9 +700,71 @@ swarm-trader/
 
 ---
 
+## AutoResearch — Strategy Evolution Lab
+
+Autonomous strategy evolution inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch). An AI agent iteratively modifies the trading strategy, backtests it against historical data, and keeps improvements — all without human intervention.
+
+### How It Works
+
+```
+program.md (research instructions — human writes this)
+    ↓
+evolve.py (orchestrator — spawns agent, runs backtest, keeps/reverts)
+    ↓
+strategy.py (pure-Python strategy — the file being evolved, NO LLM calls)
+    ↓
+backtest_fast.py (fitness function — cached 5-min bars, deterministic, fast)
+    ↓
+experiments/log.jsonl (full experiment history with diffs and metrics)
+```
+
+The agent modifies `strategy.py` (indicators, parameters, signal rules), the backtester runs it against cached Alpaca 5-min bars, and if the composite fitness score improves, the change is kept. One iteration takes ~1-2 minutes. Run 50 overnight, wake up to a better strategy.
+
+### Fitness Score
+
+```
+fitness = (sharpe * 0.35) + (sortino * 0.25) + (return% * 0.20) + (win_rate * 0.10) + (profit_factor * 0.10)
+```
+
+Penalties for: drawdown > 15%, win rate < 30%, too few trades (< 10), overtrading (> 200).
+
+### Quick Start
+
+```bash
+# 1. Cache historical data (one-time, ~2 min)
+poetry run python autoresearch/backtest_fast.py --days 10
+
+# 2. Run the baseline backtest
+poetry run python autoresearch/backtest_fast.py
+
+# 3. Kick off autonomous evolution (50 iterations)
+poetry run python autoresearch/evolve.py --iterations 50
+
+# 4. Review experiment log
+cat autoresearch/experiments/log.jsonl | python3 -m json.tool
+```
+
+### Files
+
+| File | Role | Modified by |
+|------|------|-------------|
+| `autoresearch/strategy.py` | Pure-Python strategy (indicators, params, signal rules) | Agent |
+| `autoresearch/backtest_fast.py` | Deterministic backtester, fitness scorer | Nobody |
+| `autoresearch/evolve.py` | Evolution loop orchestrator | Nobody |
+| `autoresearch/program.md` | Agent instructions | Human |
+| `autoresearch/experiments/log.jsonl` | Full experiment history | System |
+
+### From Research to Production
+
+AutoResearch discovers what works offline. Winning findings (parameter changes, new indicator combinations, rule improvements) get manually reviewed and folded into the live Apex agent's prompt and config. The research lab doesn't touch live money.
+
+---
+
 ## Credits
 
 Built on [virattt/ai-hedge-fund](https://github.com/virattt/ai-hedge-fund). Extended with free data sources, day trading mode, intraday technicals, enforced risk management, short selling, and multi-provider LLM support.
+
+AutoResearch system inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — the pattern of autonomous AI agents iterating on code with a fixed evaluation budget.
 
 ## Disclaimer
 
