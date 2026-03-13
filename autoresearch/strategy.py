@@ -1,6 +1,6 @@
-# EXPERIMENT: widen_vwap_band
-# HYPOTHESIS: VWAP_NEAR_BAND_PCT=0.30 is too tight — price barely above/below VWAP still scores directional signal, creating noise trades in choppy markets. Widening to 0.50 requires stronger VWAP deviation before scoring, reducing low-quality signals and improving Sharpe/Sortino.
-# CHANGE: VWAP_NEAR_BAND_PCT increased from 0.30 to 0.50
+# EXPERIMENT: tighten_rsi_thresholds
+# HYPOTHESIS: RSI_OVERSOLD=35 and RSI_OVERBOUGHT=65 are generous — many tickers briefly dip to 35 or spike to 65 intraday without real mean-reversion setups. Tightening to 30/70 means only genuinely extreme RSI readings trigger the full 100% RSI component, producing fewer but higher-conviction signals, improving win rate and Sharpe.
+# CHANGE: RSI_OVERSOLD decreased from 35 to 30, RSI_OVERBOUGHT increased from 65 to 70
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "widen_vwap_band"
-EXPERIMENT_HYPOTHESIS = "VWAP_NEAR_BAND_PCT=0.30 too tight — widening to 0.50 filters marginal near-VWAP signals"
-EXPERIMENT_CHANGE = "VWAP_NEAR_BAND_PCT increased from 0.30 to 0.50"
+EXPERIMENT_NAME = "tighten_rsi_thresholds"
+EXPERIMENT_HYPOTHESIS = "RSI_OVERSOLD=35/RSI_OVERBOUGHT=65 are too generous; tightening to 30/70 requires more extreme readings for full RSI conviction, improving signal quality and win rate"
+EXPERIMENT_CHANGE = "RSI_OVERSOLD decreased from 35 to 30, RSI_OVERBOUGHT increased from 65 to 70"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -29,8 +29,8 @@ EXPERIMENT_CHANGE = "VWAP_NEAR_BAND_PCT increased from 0.30 to 0.50"
 
 # RSI thresholds
 RSI_PERIOD = 14
-RSI_OVERSOLD = 35           # Buy signal below this
-RSI_OVERBOUGHT = 65         # Sell signal above this
+RSI_OVERSOLD = 30           # Buy signal below this
+RSI_OVERBOUGHT = 70         # Sell signal above this
 RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
 
@@ -43,12 +43,12 @@ VOLUME_CONFIRM_RATIO = 1.50     # >= 1.5x to confirm signal
 VOLUME_STRONG_RATIO = 2.50      # >= 2.5x = strong conviction
 
 # Risk / sizing
-STOP_PCT = 0.015                # Default stop = 1.5% from entry
+STOP_PCT = 0.010                # Default stop = 1.0% from entry
 TARGET_MULTIPLIER = 2.0         # R:R ratio (target = entry ± stop_dist * 2.0)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
 # Minimum confidence to emit a signal (0–100)
-MIN_CONFIDENCE = 53.0
+MIN_CONFIDENCE = 58.0
 
 # Confidence component weights (must sum to 1.0)
 CONF_WEIGHT_RSI = 0.30
