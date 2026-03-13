@@ -12,13 +12,13 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 
-# Glorft/DROX A2A config
-GLORFT_URL = "http://100.106.81.19:9092/a2a/tasks/send"
-GLORFT_TOKEN = "An9U8IkH28WoeVDTs3zFrhEzBlrGo1IM"
+# Glorft/DROX A2A config — loaded from environment variables
+GLORFT_URL = os.getenv("GLORFT_A2A_URL", "http://localhost:9092/a2a/tasks/send")
+GLORFT_TOKEN = os.getenv("GLORFT_A2A_TOKEN", "")
 
 # Mordecai A2A config (for receiving)
-MORDECAI_URL = "http://localhost:9092/a2a/tasks/send"
-MORDECAI_TOKEN = "6OFUpWpl5sQZ8KUxDIJ0Kzxykoj4I"
+MORDECAI_URL = os.getenv("MORDECAI_A2A_URL", "http://localhost:9092/a2a/tasks/send")
+MORDECAI_TOKEN = os.getenv("MORDECAI_A2A_TOKEN", "")
 
 
 def build_intel_packet(data_file: str, packet_type: str = "daily-brief") -> dict:
