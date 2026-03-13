@@ -1,6 +1,6 @@
-# EXPERIMENT: optimal_confidence_threshold
-# HYPOTHESIS: Current fitness=2.7808 with MIN_CONFIDENCE=55 (24 trades, 54% WR) can be improved. Historical experiments achieved fitness=8.5593 with MIN_CONFIDENCE=62, but 62/0.65=95.38 > 95.0 creates volatile regime impossibility. MIN_CONFIDENCE=60 bridges this gap: 60/0.65=92.3 < 95.0 (achievable), filters more weak signals than 55, should reduce trade count to ~15-20 and increase win rate to 60-65%, improving Sharpe ratio and overall fitness.
-# CHANGE: MIN_CONFIDENCE from 55.0 to 60.0
+# EXPERIMENT: deeper_oversold_threshold
+# HYPOTHESIS: Current fitness=7.8392 with 75% WR and 12 trades shows high-quality signals but room for improvement. RSI_OVERSOLD=25 has been consistently successful. Deepening to RSI=23 filters for even stronger oversold conditions - true capitulation vs mild oversold. This should improve average trade quality by catching deeper bounces, boosting win rate toward 80%+ and improving Sharpe/Sortino ratios while maintaining reasonable trade frequency.
+# CHANGE: RSI_OVERSOLD from 25 to 23
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "optimal_confidence_threshold"
-EXPERIMENT_HYPOTHESIS = "Current fitness=2.7808 with MIN_CONFIDENCE=55 (24 trades, 54% WR) can be improved. Historical experiments achieved fitness=8.5593 with MIN_CONFIDENCE=62, but 62/0.65=95.38 > 95.0 creates volatile regime impossibility. MIN_CONFIDENCE=60 bridges this gap: 60/0.65=92.3 < 95.0 (achievable), filters more weak signals than 55, should reduce trade count to ~15-20 and increase win rate to 60-65%, improving Sharpe ratio and overall fitness."
-EXPERIMENT_CHANGE = "MIN_CONFIDENCE from 55.0 to 60.0"
+EXPERIMENT_NAME = "deeper_oversold_threshold"
+EXPERIMENT_HYPOTHESIS = "Current fitness=7.8392 with 75% WR and 12 trades shows high-quality signals but room for improvement. RSI_OVERSOLD=25 has been consistently successful. Deepening to RSI=23 filters for even stronger oversold conditions - true capitulation vs mild oversold. This should improve average trade quality by catching deeper bounces, boosting win rate toward 80%+ and improving Sharpe/Sortino ratios while maintaining reasonable trade frequency."
+EXPERIMENT_CHANGE = "RSI_OVERSOLD from 25 to 23"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -29,7 +29,7 @@ EXPERIMENT_CHANGE = "MIN_CONFIDENCE from 55.0 to 60.0"
 
 # RSI thresholds
 RSI_PERIOD = 14
-RSI_OVERSOLD = 25           # Buy signal below this
+RSI_OVERSOLD = 23           # Buy signal below this
 RSI_OVERBOUGHT = 65         # Sell signal above this
 RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
