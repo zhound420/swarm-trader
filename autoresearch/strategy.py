@@ -1,6 +1,6 @@
-# EXPERIMENT: ultra_tight_rsi_thresholds
-# HYPOTHESIS: RSI<27 gave 27 trades at 59.26% WR — readings in the 25-26.9 range are still moderate extremes. RSI<25 (ultra oversold) and >75 (ultra overbought) represent panic-level extremes with the strongest historical mean-reversion snap-back. Reducing from 27→25/73→75 should cut trades from 27→~18-22 (safely above 10-trade penalty) while pushing win rate toward 63%+, directly boosting Sharpe, Sortino, and profit_factor — the top three fitness components.
-# CHANGE: RSI_OVERSOLD from 27 to 25, RSI_OVERBOUGHT from 73 to 75
+# EXPERIMENT: increase_target_multiplier
+# HYPOTHESIS: With 14 trades at 57% WR and MIN_CONFIDENCE=62, signal quality is high but profit capture is limited. TARGET_MULTIPLIER 2.5→3.0 increases each winner's profit by 20% (target moves from 2.0% to 2.4% with 0.8% stop) without changing stop risk, signal count, or entry criteria. For mean-reversion RSI<25 bounces, price typically has room to recover 2-3x the stop distance. Larger winners improve total_return (0.20 weight), profit_factor (0.10 weight), and the mean return per trade — boosting Sharpe (0.35) and Sortino (0.25) since the numerator grows while loss distribution stays constant.
+# CHANGE: TARGET_MULTIPLIER from 2.5 to 3.0
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "ultra_tight_rsi_thresholds"
-EXPERIMENT_HYPOTHESIS = "RSI<27 gave 27 trades at 59.26% WR — readings in the 25-26.9 range are still moderate extremes. RSI<25 (ultra oversold) and >75 (ultra overbought) represent panic-level extremes with the strongest historical mean-reversion snap-back. Reducing from 27→25/73→75 should cut trades from 27→~18-22 (safely above 10-trade penalty) while pushing win rate toward 63%+, directly boosting Sharpe, Sortino, and profit_factor — the top three fitness components."
-EXPERIMENT_CHANGE = "RSI_OVERSOLD from 27 to 25, RSI_OVERBOUGHT from 73 to 75"
+EXPERIMENT_NAME = "increase_target_multiplier"
+EXPERIMENT_HYPOTHESIS = "With 14 trades at 57% WR and MIN_CONFIDENCE=62, signal quality is high but profit capture is limited. TARGET_MULTIPLIER 2.5→3.0 increases each winner's profit by 20% (target moves from 2.0% to 2.4% with 0.8% stop) without changing stop risk, signal count, or entry criteria. For mean-reversion RSI<25 bounces, price typically has room to recover 2-3x the stop distance. Larger winners improve total_return (0.20 weight), profit_factor (0.10 weight), and the mean return per trade — boosting Sharpe (0.35) and Sortino (0.25) since the numerator grows while loss distribution stays constant."
+EXPERIMENT_CHANGE = "TARGET_MULTIPLIER from 2.5 to 3.0"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -44,11 +44,11 @@ VOLUME_STRONG_RATIO = 2.50      # >= 2.5x = strong conviction
 
 # Risk / sizing
 STOP_PCT = 0.008                # Default stop = 0.8% from entry
-TARGET_MULTIPLIER = 2.5         # R:R ratio (target = entry ± stop_dist * 2.5)
+TARGET_MULTIPLIER = 3.0         # R:R ratio (target = entry ± stop_dist * 3.0)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
 # Minimum confidence to emit a signal (0–100)
-MIN_CONFIDENCE = 58.0
+MIN_CONFIDENCE = 62.0
 
 # Confidence component weights (must sum to 1.0)
 CONF_WEIGHT_RSI = 0.40
