@@ -1,6 +1,6 @@
-# EXPERIMENT: responsive_macd
-# HYPOTHESIS: Current MACD_FAST = 12 is designed for daily charts and is too slow for 5-minute intraday bars, causing lagging entry signals that reduce signal quality and timing. This hurts the Sharpe ratio (currently 0.2732, which has 35% weight in fitness). Reducing MACD_FAST to 8 makes MACD more responsive to short-term price movements on 5-minute bars, improving entry timing and signal quality without changing fundamental logic.
-# CHANGE: MACD_FAST from 12 to 8
+# EXPERIMENT: responsive_rsi_overbought
+# HYPOTHESIS: Current RSI_OVERBOUGHT = 70 is designed for daily charts and is too high for 5-minute intraday bars, causing the strategy to miss valid bearish signals since intraday RSI rarely reaches 70. RSI has 35% weight in confidence calculations (highest of any component), so more responsive thresholds should improve signal generation and timing. Reducing RSI_OVERBOUGHT to 65 makes it more appropriate for 5-minute bars, enabling more timely short entries and improving Sharpe ratio.
+# CHANGE: RSI_OVERBOUGHT from 70 to 65
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "responsive_macd"
-EXPERIMENT_HYPOTHESIS = "Current MACD_FAST = 12 is designed for daily charts and is too slow for 5-minute intraday bars, causing lagging entry signals that reduce signal quality and timing. This hurts the Sharpe ratio (currently 0.2732, which has 35% weight in fitness). Reducing MACD_FAST to 8 makes MACD more responsive to short-term price movements on 5-minute bars, improving entry timing and signal quality without changing fundamental logic."
-EXPERIMENT_CHANGE = "MACD_FAST from 12 to 8"
+EXPERIMENT_NAME = "responsive_rsi_overbought"
+EXPERIMENT_HYPOTHESIS = "Current RSI_OVERBOUGHT = 70 is designed for daily charts and is too high for 5-minute intraday bars, causing the strategy to miss valid bearish signals since intraday RSI rarely reaches 70. RSI has 35% weight in confidence calculations (highest of any component), so more responsive thresholds should improve signal generation and timing. Reducing RSI_OVERBOUGHT to 65 makes it more appropriate for 5-minute bars, enabling more timely short entries and improving Sharpe ratio."
+EXPERIMENT_CHANGE = "RSI_OVERBOUGHT from 70 to 65"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -30,7 +30,7 @@ EXPERIMENT_CHANGE = "MACD_FAST from 12 to 8"
 # RSI thresholds
 RSI_PERIOD = 14
 RSI_OVERSOLD = 30           # Buy signal below this
-RSI_OVERBOUGHT = 70         # Sell signal above this
+RSI_OVERBOUGHT = 65         # Sell signal above this
 RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
 
