@@ -765,19 +765,7 @@ def main() -> int:
                 stop_reason = "plateau"
                 break
 
-    # --- Final summary ---
-    all_experiments = _load_recent_experiments(n=1000)
-    _print_summary(all_experiments, baseline_fitness)
-
-    print(f"\n[evolve] Best fitness achieved: {best_fitness:.4f}", file=sys.stderr)
-    print(f"[evolve] Baseline:              {baseline_fitness:.4f}", file=sys.stderr)
-    print(f"[evolve] Improvement:           {best_fitness - baseline_fitness:+.4f}", file=sys.stderr)
-
-    # Clean up backup
-    if STRATEGY_BACKUP_PATH.exists():
-        STRATEGY_BACKUP_PATH.unlink()
-
-    # --- Write run summary ---
+    # --- Write run summary (before stdout output, in case of pipe interruption) ---
     kept_experiments = [e for e in session_experiments if e.get("kept")]
     top_hypothesis: str | None = None
     if kept_experiments:
@@ -809,6 +797,18 @@ def main() -> int:
         "timeout_count": timeout_count,
         "top_hypothesis": top_hypothesis,
     })
+
+    # --- Final summary ---
+    all_experiments = _load_recent_experiments(n=1000)
+    _print_summary(all_experiments, baseline_fitness)
+
+    print(f"\n[evolve] Best fitness achieved: {best_fitness:.4f}", file=sys.stderr)
+    print(f"[evolve] Baseline:              {baseline_fitness:.4f}", file=sys.stderr)
+    print(f"[evolve] Improvement:           {best_fitness - baseline_fitness:+.4f}", file=sys.stderr)
+
+    # Clean up backup
+    if STRATEGY_BACKUP_PATH.exists():
+        STRATEGY_BACKUP_PATH.unlink()
 
     return 0
 
