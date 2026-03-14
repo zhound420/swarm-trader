@@ -1,6 +1,6 @@
-# EXPERIMENT: lower_volume_threshold
-# HYPOTHESIS: Current fitness=8.3331 with 81.82% WR and 11 trades shows excellent signal quality. Volume confirmation threshold 1.50x may be too restrictive, blocking quality RSI<23 signals in normal volume conditions. Lowering to 1.40x allows slightly more signals through while maintaining quality since volume has only 20% weight vs RSI's 35% weight. This should increase trade frequency to 12-15 trades, improving total return (20% weight) and profit factor (10% weight) without significantly hurting Sharpe/Sortino since win rate should remain high.
-# CHANGE: VOLUME_CONFIRM_RATIO from 1.50 to 1.40
+# EXPERIMENT: raise_rsi_oversold_threshold
+# HYPOTHESIS: Current baseline fitness=-7.3072 suggests < 10 trades penalty (-15). Recent successful experiments achieved fitness=8.3331+ with RSI_OVERSOLD=23 generating 11 trades at 81.82% WR. However, RSI<23 is extremely restrictive. Raising to RSI_OVERSOLD=25 (still quite oversold) should increase signal frequency while maintaining mean-reversion quality, helping avoid < 10 trades penalty and moving toward positive fitness territory.
+# CHANGE: RSI_OVERSOLD from 23 to 25
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "lower_volume_threshold"
-EXPERIMENT_HYPOTHESIS = "Current fitness=8.3331 with 81.82% WR and 11 trades shows excellent signal quality. Volume confirmation threshold 1.50x may be too restrictive, blocking quality RSI<23 signals in normal volume conditions. Lowering to 1.40x allows slightly more signals through while maintaining quality since volume has only 20% weight vs RSI's 35% weight. This should increase trade frequency to 12-15 trades, improving total return (20% weight) and profit factor (10% weight) without significantly hurting Sharpe/Sortino since win rate should remain high."
-EXPERIMENT_CHANGE = "VOLUME_CONFIRM_RATIO from 1.50 to 1.40"
+EXPERIMENT_NAME = "raise_rsi_oversold_threshold"
+EXPERIMENT_HYPOTHESIS = "Current baseline fitness=-7.3072 suggests < 10 trades penalty (-15). Recent successful experiments achieved fitness=8.3331+ with RSI_OVERSOLD=23 generating 11 trades at 81.82% WR. However, RSI<23 is extremely restrictive. Raising to RSI_OVERSOLD=25 (still quite oversold) should increase signal frequency while maintaining mean-reversion quality, helping avoid < 10 trades penalty and moving toward positive fitness territory."
+EXPERIMENT_CHANGE = "RSI_OVERSOLD from 23 to 25"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -29,7 +29,7 @@ EXPERIMENT_CHANGE = "VOLUME_CONFIRM_RATIO from 1.50 to 1.40"
 
 # RSI thresholds
 RSI_PERIOD = 14
-RSI_OVERSOLD = 23           # Buy signal below this
+RSI_OVERSOLD = 25           # Buy signal below this
 RSI_OVERBOUGHT = 65         # Sell signal above this
 RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
