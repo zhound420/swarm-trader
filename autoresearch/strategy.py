@@ -1,6 +1,6 @@
-# EXPERIMENT: raise_rsi_oversold_threshold
-# HYPOTHESIS: Current baseline fitness=-7.3072 suggests < 10 trades penalty (-15). Recent successful experiments achieved fitness=8.3331+ with RSI_OVERSOLD=23 generating 11 trades at 81.82% WR. However, RSI<23 is extremely restrictive. Raising to RSI_OVERSOLD=25 (still quite oversold) should increase signal frequency while maintaining mean-reversion quality, helping avoid < 10 trades penalty and moving toward positive fitness territory.
-# CHANGE: RSI_OVERSOLD from 23 to 25
+# EXPERIMENT: lower_min_confidence_threshold
+# HYPOTHESIS: Current RSI_OVERSOLD=25 achieves fitness=7.1953 with 70% WR and 10 trades, while historical RSI_OVERSOLD=23 achieved fitness=8.3331+ with 81.82% WR. Recent RSI=23 attempts only generate 9 trades (penalty). Market microstructure has changed, making RSI<23 rarer. MIN_CONFIDENCE 60.0→58.0 allows slightly more marginal signals through while maintaining proven RSI=25 threshold. Math check: 58.0/0.65=89.2 < 95.0 (achievable in volatile regime). Should increase trade frequency 10→12-13, improving total return (20% weight) and profit factor (10% weight).
+# CHANGE: MIN_CONFIDENCE from 60.0 to 58.0
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "raise_rsi_oversold_threshold"
-EXPERIMENT_HYPOTHESIS = "Current baseline fitness=-7.3072 suggests < 10 trades penalty (-15). Recent successful experiments achieved fitness=8.3331+ with RSI_OVERSOLD=23 generating 11 trades at 81.82% WR. However, RSI<23 is extremely restrictive. Raising to RSI_OVERSOLD=25 (still quite oversold) should increase signal frequency while maintaining mean-reversion quality, helping avoid < 10 trades penalty and moving toward positive fitness territory."
-EXPERIMENT_CHANGE = "RSI_OVERSOLD from 23 to 25"
+EXPERIMENT_NAME = "lower_min_confidence_threshold"
+EXPERIMENT_HYPOTHESIS = "Current RSI_OVERSOLD=25 achieves fitness=7.1953 with 70% WR and 10 trades, while historical RSI_OVERSOLD=23 achieved fitness=8.3331+ with 81.82% WR. Recent RSI=23 attempts only generate 9 trades (penalty). Market microstructure has changed, making RSI<23 rarer. MIN_CONFIDENCE 60.0→58.0 allows slightly more marginal signals through while maintaining proven RSI=25 threshold. Math check: 58.0/0.65=89.2 < 95.0 (achievable in volatile regime). Should increase trade frequency 10→12-13, improving total return (20% weight) and profit factor (10% weight)."
+EXPERIMENT_CHANGE = "MIN_CONFIDENCE from 60.0 to 58.0"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -48,7 +48,7 @@ TARGET_MULTIPLIER = 3.0         # R:R ratio (target = entry ± stop_dist * 3.0)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
 # Minimum confidence to emit a signal (0–100)
-MIN_CONFIDENCE = 60.0
+MIN_CONFIDENCE = 58.0
 
 # Confidence component weights (must sum to 1.0)
 CONF_WEIGHT_RSI = 0.35
