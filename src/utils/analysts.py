@@ -20,6 +20,7 @@ from src.agents.mohnish_pabrai import mohnish_pabrai_agent
 from src.agents.news_sentiment import news_sentiment_agent
 from src.agents.growth_agent import growth_analyst_agent
 from src.agents.apex import apex_agent
+from src.agents.autoresearch_agent import autoresearch_agent
 from src.agents.market_regime import market_regime_agent
 
 # Define analyst configuration - single source of truth
@@ -176,13 +177,21 @@ ANALYST_CONFIG = {
         "type": "analyst",
         "order": 18,
     },
+    "autoresearch": {
+        "display_name": "AutoResearch",
+        "description": "Evolved Strategy Signal (Deterministic)",
+        "investing_style": "Deterministic signals from an autonomously evolved pure-Python strategy. Zero LLM calls. Uses RSI bridge tiers, VWAP deviation, volume confirmation, MACD, and market regime multipliers. Parameters are evolved nightly via backtesting against historical data. Current strategy fitness and experiment name are logged for PM awareness.",
+        "agent_func": autoresearch_agent,
+        "type": "analyst",
+        "order": 19,
+    },
     "market_regime": {
         "display_name": "Market Regime",
         "description": "Intraday Market Regime Classifier",
         "investing_style": "Classifies the current intraday market regime (trending_up, trending_down, range_bound, volatile) using SPY/QQQ intraday data. Feeds into Apex so it adapts strategy to the tape. Run this before Apex for best results.",
         "agent_func": market_regime_agent,
         "type": "analyst",
-        "order": 19,
+        "order": 20,
     },
 }
 
