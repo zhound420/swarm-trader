@@ -93,7 +93,7 @@ Examples:
     parser.add_argument(
         "--analysts", 
         type=str,
-        default="warren_buffett,michael_burry,cathie_wood,apex,fundamentals_analyst,technical_analyst",
+        default="warren_buffett,michael_burry,cathie_wood,apex,autoresearch,fundamentals_analyst,technical_analyst",
         help="Comma-separated list of analysts to use"
     )
     parser.add_argument(

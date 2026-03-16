@@ -87,7 +87,11 @@ def _build_bars_df(tickers: list[str], ticker_data_map: dict) -> dict[str, list[
     return bars_df
 
 
-def _build_market_context(market_regime: dict, bars_df: dict | None = None) -> dict:
+def _build_market_context(
+    market_regime: dict,
+    bars_df: dict | None = None,
+    ticker_data_map: dict | None = None,
+) -> dict:
     """
     Build market_context dict for strategy.generate_signals().
 
@@ -95,6 +99,9 @@ def _build_market_context(market_regime: dict, bars_df: dict | None = None) -> d
       - regime: str (trending_up, trending_down, range_bound, volatile, unknown)
       - mode: str (day or swing)
       - current_bar_time: str (HH:MM in ET for time-of-day filters)
+      - {ticker}_avg_volume_20d: float (per-ticker 20d avg volume for volume ratio calc)
+      - spy_change_pct: float (SPY daily change % for alignment bonus)
+      - qqq_change_pct: float (QQQ daily change % for alignment bonus)
     """
     from datetime import datetime, timezone, timedelta
 
@@ -125,11 +132,23 @@ def _build_market_context(market_regime: dict, bars_df: dict | None = None) -> d
         et = now_utc - timedelta(hours=4)  # EDT approximation
         current_bar_time = et.strftime("%H:%M")
 
-    return {
+    ctx = {
         "regime": market_regime.get("regime", "unknown"),
         "mode": "day",  # autoresearch currently only evolves day strategies
         "current_bar_time": current_bar_time,
+        "spy_change_pct": market_regime.get("spy_change_pct", 0.0),
+        "qqq_change_pct": market_regime.get("qqq_change_pct", 0.0),
     }
+
+    # Inject per-ticker avg_volume_20d so strategy.py can compute volume ratios
+    if ticker_data_map:
+        for ticker, td in ticker_data_map.items():
+            intraday = td.get("intraday", {})
+            avg_vol = intraday.get("avg_volume_20d")
+            if avg_vol:
+                ctx[f"{ticker}_avg_volume_20d"] = float(avg_vol)
+
+    return ctx
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +191,7 @@ def autoresearch_agent(state: AgentState, agent_id: str = "autoresearch_agent"):
 
     # Build inputs in strategy.py's expected format
     bars_df = _build_bars_df(tickers, ticker_data_map)
-    market_context = _build_market_context(market_regime, bars_df)
+    market_context = _build_market_context(market_regime, bars_df, ticker_data_map)
 
     # Run the evolved strategy
     try:

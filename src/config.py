@@ -68,6 +68,6 @@ ALL_DAY_TRADE_TICKERS = [t for cat in DAY_TRADE_UNIVERSE.values() for t in cat["
 MAX_RISK_PER_TRADE        = 0.02   # Risk 2% of portfolio per trade
 MAX_PORTFOLIO_HEAT        = 0.10   # Max 10% of portfolio at risk at any time
 MAX_POSITION_SIZE         = 0.15   # No single position > 15% of portfolio
-DEFAULT_STOP_PCT          = 0.02   # 2% stop loss default (applied when agent omits stop)
-DEFAULT_TARGET_MULTIPLIER = 2.0    # 2:1 reward:risk — target = entry ± (stop_dist * 2)
+DEFAULT_STOP_PCT          = 0.012  # 1.2% stop loss default (aligned with evolved strategy)
+DEFAULT_TARGET_MULTIPLIER = 3.0    # 3:1 reward:risk — target = entry ± (stop_dist * 3)
 FLATTEN_BY                = "15:45"  # Flatten speculative positions by 3:45 PM ET
