@@ -1,6 +1,6 @@
-# EXPERIMENT: optimize_rsi_period
-# HYPOTHESIS: Current RSI(14) on 5-minute bars covers 70 minutes of price history, which may be too slow for responsive intraday signal generation. Reducing RSI_PERIOD from 14 to 10 (50 minutes) makes RSI more sensitive to recent price movements, improving entry timing precision and potentially boosting risk-adjusted returns (Sharpe 35% + Sortino 25% = 60% of fitness) without disrupting the proven RSI bridge tier scoring system.
-# CHANGE: Reduce RSI_PERIOD from 14 to 10 for more responsive signal timing
+# EXPERIMENT: optimize_vwap_selectivity
+# HYPOTHESIS: Current RSI_PERIOD=10 optimization made RSI more responsive to recent price action. Now VWAP_NEAR_BAND_PCT=0.75% may be too permissive, allowing marginal VWAP signals that degrade signal quality. Previous attempts lowered this threshold (0.60%) and failed. Increasing to 0.85% makes VWAP more selective by requiring greater price deviation for directional signals, improving signal quality and risk-adjusted metrics (60% of fitness weight) without disrupting the proven RSI bridge tier system.
+# CHANGE: Increase VWAP_NEAR_BAND_PCT from 0.75% to 0.85% for higher signal quality
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "optimize_rsi_period"
-EXPERIMENT_HYPOTHESIS = "Current RSI(14) on 5-minute bars covers 70 minutes of price history, which may be too slow for responsive intraday signal generation. Reducing RSI_PERIOD from 14 to 10 (50 minutes) makes RSI more sensitive to recent price movements, improving entry timing precision and potentially boosting risk-adjusted returns (Sharpe 35% + Sortino 25% = 60% of fitness) without disrupting the proven RSI bridge tier scoring system."
-EXPERIMENT_CHANGE = "Reduce RSI_PERIOD from 14 to 10 for more responsive signal timing"
+EXPERIMENT_NAME = "optimize_vwap_selectivity"
+EXPERIMENT_HYPOTHESIS = "Current RSI_PERIOD=10 optimization made RSI more responsive to recent price action. Now VWAP_NEAR_BAND_PCT=0.75% may be too permissive, allowing marginal VWAP signals that degrade signal quality. Previous attempts lowered this threshold (0.60%) and failed. Increasing to 0.85% makes VWAP more selective by requiring greater price deviation for directional signals, improving signal quality and risk-adjusted metrics (60% of fitness weight) without disrupting the proven RSI bridge tier system."
+EXPERIMENT_CHANGE = "Increase VWAP_NEAR_BAND_PCT from 0.75% to 0.85% for higher signal quality"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -38,7 +38,7 @@ RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
 
 # VWAP deviation bands (%)
-VWAP_NEAR_BAND_PCT = 0.75       # Within 0.75% = "at VWAP", no strong signal
+VWAP_NEAR_BAND_PCT = 0.85       # Within 0.85% = "at VWAP", no strong signal
 VWAP_EXTENDED_PCT = 1.50        # > 1.5% from VWAP = extended, caution
 
 # Volume ratio thresholds (today cumulative / 20d avg daily)
