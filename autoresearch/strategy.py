@@ -1,6 +1,6 @@
-# EXPERIMENT: increase_target_multiplier_further
-# HYPOTHESIS: Current fitness=10.0502 with exceptional 88% win rate shows outstanding signal quality. Recent risk management optimizations have been successful (STOP_PCT 1.1%→1.0%, TARGET_MULTIPLIER 3.0→3.1). With such high win rate (88%), the current 3.1x R:R ratio may still be conservative. Increasing from 3.1 to 3.2 should further boost total_return_pct (20% of fitness weight) and profit_factor (10% of fitness weight) while the exceptional win rate provides cushion.
-# CHANGE: Increase TARGET_MULTIPLIER from 3.1 to 3.2
+# EXPERIMENT: continue_target_multiplier_success
+# HYPOTHESIS: Current fitness=10.0663 with exceptional 88% win rate shows outstanding signal quality. The recent TARGET_MULTIPLIER increases have been highly successful (3.0→3.1→3.2), each improving fitness by capturing more profit on the 88% winning trades. With such high win rate providing cushion against volatility, increasing from 3.2 to 3.3 should continue to boost total_return_pct (20% fitness weight) and profit_factor (10% fitness weight) while the exceptional performance provides margin for increased aggression.
+# CHANGE: Increase TARGET_MULTIPLIER from 3.2 to 3.3
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "increase_target_multiplier_further"
-EXPERIMENT_HYPOTHESIS = "Current fitness=10.0502 with exceptional 88% win rate shows outstanding signal quality. Recent risk management optimizations have been successful (STOP_PCT 1.1%→1.0%, TARGET_MULTIPLIER 3.0→3.1). With such high win rate (88%), the current 3.1x R:R ratio may still be conservative. Increasing from 3.1 to 3.2 should further boost total_return_pct (20% of fitness weight) and profit_factor (10% of fitness weight) while the exceptional win rate provides cushion."
-EXPERIMENT_CHANGE = "Increase TARGET_MULTIPLIER from 3.1 to 3.2"
+EXPERIMENT_NAME = "continue_target_multiplier_success"
+EXPERIMENT_HYPOTHESIS = "Current fitness=10.0663 with exceptional 88% win rate shows outstanding signal quality. The recent TARGET_MULTIPLIER increases have been highly successful (3.0→3.1→3.2), each improving fitness by capturing more profit on the 88% winning trades. With such high win rate providing cushion against volatility, increasing from 3.2 to 3.3 should continue to boost total_return_pct (20% fitness weight) and profit_factor (10% fitness weight) while the exceptional performance provides margin for increased aggression."
+EXPERIMENT_CHANGE = "Increase TARGET_MULTIPLIER from 3.2 to 3.3"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -47,7 +47,7 @@ VOLUME_STRONG_RATIO = 2.50      # >= 2.5x = strong conviction
 
 # Risk / sizing
 STOP_PCT = 0.010                # Default stop = 1.0% from entry
-TARGET_MULTIPLIER = 3.2         # R:R ratio (target = entry ± stop_dist * 3.2)
+TARGET_MULTIPLIER = 3.3         # R:R ratio (target = entry ± stop_dist * 3.3)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
 # Minimum confidence to emit a signal (0–100)
