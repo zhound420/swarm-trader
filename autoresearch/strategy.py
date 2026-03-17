@@ -1,6 +1,6 @@
-# EXPERIMENT: extend_range_bound_bonus
-# HYPOTHESIS: Current fitness=8.2291 with successful RSI bridge tiers, but range-bound bonus only applies to RSI<32 (strong+ oversold), missing moderate oversold tier (RSI 32-38). In range-bound markets, mean-reversion strategies should work well even at moderate oversold levels. Extending range-bound bonus from RSI<32 to RSI<38 captures additional quality mean-reversion signals in choppy markets, giving RSI 32-38 tier a 15% boost (70% → 80.5% effective score) when regime=range_bound.
-# CHANGE: Extend range-bound mean-reversion bonus to include RSI < RSI_MODERATE_OVERSOLD (38) instead of RSI < RSI_STRONG_OVERSOLD (32)
+# EXPERIMENT: optimize_rsi_period
+# HYPOTHESIS: Current RSI(14) on 5-minute bars covers 70 minutes of price history, which may be too slow for responsive intraday signal generation. Reducing RSI_PERIOD from 14 to 10 (50 minutes) makes RSI more sensitive to recent price movements, improving entry timing precision and potentially boosting risk-adjusted returns (Sharpe 35% + Sortino 25% = 60% of fitness) without disrupting the proven RSI bridge tier scoring system.
+# CHANGE: Reduce RSI_PERIOD from 14 to 10 for more responsive signal timing
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,16 +19,16 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "extend_range_bound_bonus"
-EXPERIMENT_HYPOTHESIS = "Current fitness=8.2291 with successful RSI bridge tiers, but range-bound bonus only applies to RSI<32 (strong+ oversold), missing moderate oversold tier (RSI 32-38). In range-bound markets, mean-reversion strategies should work well even at moderate oversold levels. Extending range-bound bonus from RSI<32 to RSI<38 captures additional quality mean-reversion signals in choppy markets, giving RSI 32-38 tier a 15% boost (70% → 80.5% effective score) when regime=range_bound."
-EXPERIMENT_CHANGE = "Extend range-bound mean-reversion bonus to include RSI < RSI_MODERATE_OVERSOLD (38) instead of RSI < RSI_STRONG_OVERSOLD (32)"
+EXPERIMENT_NAME = "optimize_rsi_period"
+EXPERIMENT_HYPOTHESIS = "Current RSI(14) on 5-minute bars covers 70 minutes of price history, which may be too slow for responsive intraday signal generation. Reducing RSI_PERIOD from 14 to 10 (50 minutes) makes RSI more sensitive to recent price movements, improving entry timing precision and potentially boosting risk-adjusted returns (Sharpe 35% + Sortino 25% = 60% of fitness) without disrupting the proven RSI bridge tier scoring system."
+EXPERIMENT_CHANGE = "Reduce RSI_PERIOD from 14 to 10 for more responsive signal timing"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
 # ---------------------------------------------------------------------------
 
 # RSI thresholds
-RSI_PERIOD = 14
+RSI_PERIOD = 10
 RSI_OVERSOLD = 25           # Buy signal below this
 RSI_VERY_OVERSOLD = 29      # Very oversold tier (90% score)
 RSI_STRONG_OVERSOLD = 32    # Strong oversold tier (80% score)
