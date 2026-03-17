@@ -1,6 +1,6 @@
-# EXPERIMENT: macd_selectivity
-# HYPOTHESIS: Current MACD scoring gives 50-point contributions for mixed signals (histogram positive but MACD line negative, etc). These transitional cases add noise rather than signal quality. Following the proven pattern of more selective signals (VWAP threshold up, RSI neutral zone tightened), eliminating MACD mixed cases and only scoring when histogram and MACD line agree in direction should improve signal quality and risk-adjusted metrics without disrupting the proven RSI/VWAP optimizations.
-# CHANGE: Modify MACD scoring logic to only award points when macd_hist and macd_val agree in direction (both positive for bull, both negative for bear)
+# EXPERIMENT: confidence_selectivity
+# HYPOTHESIS: Current fitness=8.8579 with excellent 72% win rate shows high signal quality from recent selectivity optimizations (VWAP threshold up, RSI neutral tightened, MACD selectivity). Following this proven selectivity pattern, raising MIN_CONFIDENCE from 58.0 to 59.0 should further improve signal quality and risk-adjusted metrics (60% of fitness weight) by filtering out marginally confident signals, while maintaining adequate trade frequency given the current 25 trades per window.
+# CHANGE: Increase MIN_CONFIDENCE from 58.0 to 59.0
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "macd_selectivity"
-EXPERIMENT_HYPOTHESIS = "Current MACD scoring gives 50-point contributions for mixed signals (histogram positive but MACD line negative, etc). These transitional cases add noise rather than signal quality. Following the proven pattern of more selective signals (VWAP threshold up, RSI neutral zone tightened), eliminating MACD mixed cases and only scoring when histogram and MACD line agree in direction should improve signal quality and risk-adjusted metrics without disrupting the proven RSI/VWAP optimizations."
-EXPERIMENT_CHANGE = "Modify MACD scoring logic to only award points when macd_hist and macd_val agree in direction (both positive for bull, both negative for bear)"
+EXPERIMENT_NAME = "confidence_selectivity"
+EXPERIMENT_HYPOTHESIS = "Current fitness=8.8579 with excellent 72% win rate shows high signal quality from recent selectivity optimizations (VWAP threshold up, RSI neutral tightened, MACD selectivity). Following this proven selectivity pattern, raising MIN_CONFIDENCE from 58.0 to 59.0 should further improve signal quality and risk-adjusted metrics (60% of fitness weight) by filtering out marginally confident signals, while maintaining adequate trade frequency given the current 25 trades per window."
+EXPERIMENT_CHANGE = "Increase MIN_CONFIDENCE from 58.0 to 59.0"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -51,7 +51,7 @@ TARGET_MULTIPLIER = 3.0         # R:R ratio (target = entry ± stop_dist * 3.0)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
 # Minimum confidence to emit a signal (0–100)
-MIN_CONFIDENCE = 58.0
+MIN_CONFIDENCE = 59.0
 
 # Confidence component weights (must sum to 1.0)
 CONF_WEIGHT_RSI = 0.35
