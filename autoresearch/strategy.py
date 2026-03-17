@@ -1,6 +1,6 @@
-# EXPERIMENT: optimize_vwap_selectivity
-# HYPOTHESIS: Current RSI_PERIOD=10 optimization made RSI more responsive to recent price action. Now VWAP_NEAR_BAND_PCT=0.75% may be too permissive, allowing marginal VWAP signals that degrade signal quality. Previous attempts lowered this threshold (0.60%) and failed. Increasing to 0.85% makes VWAP more selective by requiring greater price deviation for directional signals, improving signal quality and risk-adjusted metrics (60% of fitness weight) without disrupting the proven RSI bridge tier system.
-# CHANGE: Increase VWAP_NEAR_BAND_PCT from 0.75% to 0.85% for higher signal quality
+# EXPERIMENT: tighten_rsi_neutral_zone
+# HYPOTHESIS: With more responsive RSI_PERIOD=10, the current neutral zone (RSI 45-55) is too wide and misses directional signals. Tightening to RSI 47-53 captures additional quality signals in the 45-47 (bull) and 53-55 (bear) ranges that currently get zero RSI contribution. This should increase trade frequency while maintaining signal quality, improving the fitness score without disrupting proven RSI bridge tiers and VWAP selectivity optimizations.
+# CHANGE: Narrow RSI neutral zone from 45-55 to 47-53 by adjusting RSI_NEUTRAL_LOW=47, RSI_NEUTRAL_HIGH=53
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "optimize_vwap_selectivity"
-EXPERIMENT_HYPOTHESIS = "Current RSI_PERIOD=10 optimization made RSI more responsive to recent price action. Now VWAP_NEAR_BAND_PCT=0.75% may be too permissive, allowing marginal VWAP signals that degrade signal quality. Previous attempts lowered this threshold (0.60%) and failed. Increasing to 0.85% makes VWAP more selective by requiring greater price deviation for directional signals, improving signal quality and risk-adjusted metrics (60% of fitness weight) without disrupting the proven RSI bridge tier system."
-EXPERIMENT_CHANGE = "Increase VWAP_NEAR_BAND_PCT from 0.75% to 0.85% for higher signal quality"
+EXPERIMENT_NAME = "tighten_rsi_neutral_zone"
+EXPERIMENT_HYPOTHESIS = "With more responsive RSI_PERIOD=10, the current neutral zone (RSI 45-55) is too wide and misses directional signals. Tightening to RSI 47-53 captures additional quality signals in the 45-47 (bull) and 53-55 (bear) ranges that currently get zero RSI contribution. This should increase trade frequency while maintaining signal quality, improving the fitness score without disrupting proven RSI bridge tiers and VWAP selectivity optimizations."
+EXPERIMENT_CHANGE = "Narrow RSI neutral zone from 45-55 to 47-53 by adjusting RSI_NEUTRAL_LOW=47, RSI_NEUTRAL_HIGH=53"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -34,8 +34,8 @@ RSI_VERY_OVERSOLD = 29      # Very oversold tier (90% score)
 RSI_STRONG_OVERSOLD = 32    # Strong oversold tier (80% score)
 RSI_MODERATE_OVERSOLD = 38  # Moderate oversold tier (70% score)
 RSI_OVERBOUGHT = 65         # Sell signal above this
-RSI_NEUTRAL_LOW = 45        # Weak bull zone lower bound
-RSI_NEUTRAL_HIGH = 55       # Weak bear zone upper bound
+RSI_NEUTRAL_LOW = 47        # Weak bull zone lower bound
+RSI_NEUTRAL_HIGH = 53       # Weak bear zone upper bound
 
 # VWAP deviation bands (%)
 VWAP_NEAR_BAND_PCT = 0.85       # Within 0.85% = "at VWAP", no strong signal
