@@ -1,6 +1,6 @@
-# EXPERIMENT: vwap_selectivity_tightening
-# HYPOTHESIS: Current fitness=9.4967 with excellent 79.17% win rate shows high signal quality from recent selectivity optimizations. VWAP component has 30% confidence weight (second highest). Following the proven selectivity pattern, increasing VWAP_NEAR_BAND_PCT from 0.85% to 0.90% should further improve signal quality by requiring stronger price deviation from VWAP for directional signals, improving risk-adjusted metrics (60% of fitness weight) while current performance (24 trades, 79.17% WR) provides cushion.
-# CHANGE: Increase VWAP_NEAR_BAND_PCT from 0.85% to 0.90%
+# EXPERIMENT: stop_loss_efficiency
+# HYPOTHESIS: Current fitness=9.6457 with excellent 82.61% win rate shows very high signal quality. With such strong performance, most trades (82.61%) are winners, so tightening stop loss from 1.2% to 1.1% should improve risk-adjusted metrics (Sharpe 35% + Sortino 25% = 60% of fitness weight) by reducing average loss on the 17.39% losing trades while the high win rate provides cushion against negative impact. Follows proven selectivity/efficiency optimization pattern.
+# CHANGE: Reduce STOP_PCT from 1.2% to 1.1%
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "vwap_selectivity_tightening"
-EXPERIMENT_HYPOTHESIS = "Current fitness=9.4967 with excellent 79.17% win rate shows high signal quality from recent selectivity optimizations. VWAP component has 30% confidence weight (second highest). Following the proven selectivity pattern, increasing VWAP_NEAR_BAND_PCT from 0.85% to 0.90% should further improve signal quality by requiring stronger price deviation from VWAP for directional signals, improving risk-adjusted metrics (60% of fitness weight) while current performance (24 trades, 79.17% WR) provides cushion."
-EXPERIMENT_CHANGE = "Increase VWAP_NEAR_BAND_PCT from 0.85% to 0.90%"
+EXPERIMENT_NAME = "stop_loss_efficiency"
+EXPERIMENT_HYPOTHESIS = "Current fitness=9.6457 with excellent 82.61% win rate shows very high signal quality. With such strong performance, most trades (82.61%) are winners, so tightening stop loss from 1.2% to 1.1% should improve risk-adjusted metrics (Sharpe 35% + Sortino 25% = 60% of fitness weight) by reducing average loss on the 17.39% losing trades while the high win rate provides cushion against negative impact. Follows proven selectivity/efficiency optimization pattern."
+EXPERIMENT_CHANGE = "Reduce STOP_PCT from 1.2% to 1.1%"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -46,7 +46,7 @@ VOLUME_CONFIRM_RATIO = 1.40     # >= 1.4x to confirm signal
 VOLUME_STRONG_RATIO = 2.50      # >= 2.5x = strong conviction
 
 # Risk / sizing
-STOP_PCT = 0.012                # Default stop = 1.2% from entry
+STOP_PCT = 0.011                # Default stop = 1.1% from entry
 TARGET_MULTIPLIER = 3.0         # R:R ratio (target = entry ± stop_dist * 3.0)
 MAX_POSITION_SIZE_PCT = 0.15    # Max 15% of portfolio per position
 
