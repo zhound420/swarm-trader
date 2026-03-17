@@ -1,6 +1,6 @@
-# EXPERIMENT: confidence_selectivity
-# HYPOTHESIS: Current fitness=8.8579 with excellent 72% win rate shows high signal quality from recent selectivity optimizations (VWAP threshold up, RSI neutral tightened, MACD selectivity). Following this proven selectivity pattern, raising MIN_CONFIDENCE from 58.0 to 59.0 should further improve signal quality and risk-adjusted metrics (60% of fitness weight) by filtering out marginally confident signals, while maintaining adequate trade frequency given the current 25 trades per window.
-# CHANGE: Increase MIN_CONFIDENCE from 58.0 to 59.0
+# EXPERIMENT: vwap_selectivity_tightening
+# HYPOTHESIS: Current fitness=9.4967 with excellent 79.17% win rate shows high signal quality from recent selectivity optimizations. VWAP component has 30% confidence weight (second highest). Following the proven selectivity pattern, increasing VWAP_NEAR_BAND_PCT from 0.85% to 0.90% should further improve signal quality by requiring stronger price deviation from VWAP for directional signals, improving risk-adjusted metrics (60% of fitness weight) while current performance (24 trades, 79.17% WR) provides cushion.
+# CHANGE: Increase VWAP_NEAR_BAND_PCT from 0.85% to 0.90%
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "confidence_selectivity"
-EXPERIMENT_HYPOTHESIS = "Current fitness=8.8579 with excellent 72% win rate shows high signal quality from recent selectivity optimizations (VWAP threshold up, RSI neutral tightened, MACD selectivity). Following this proven selectivity pattern, raising MIN_CONFIDENCE from 58.0 to 59.0 should further improve signal quality and risk-adjusted metrics (60% of fitness weight) by filtering out marginally confident signals, while maintaining adequate trade frequency given the current 25 trades per window."
-EXPERIMENT_CHANGE = "Increase MIN_CONFIDENCE from 58.0 to 59.0"
+EXPERIMENT_NAME = "vwap_selectivity_tightening"
+EXPERIMENT_HYPOTHESIS = "Current fitness=9.4967 with excellent 79.17% win rate shows high signal quality from recent selectivity optimizations. VWAP component has 30% confidence weight (second highest). Following the proven selectivity pattern, increasing VWAP_NEAR_BAND_PCT from 0.85% to 0.90% should further improve signal quality by requiring stronger price deviation from VWAP for directional signals, improving risk-adjusted metrics (60% of fitness weight) while current performance (24 trades, 79.17% WR) provides cushion."
+EXPERIMENT_CHANGE = "Increase VWAP_NEAR_BAND_PCT from 0.85% to 0.90%"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -38,7 +38,7 @@ RSI_NEUTRAL_LOW = 47        # Weak bull zone lower bound
 RSI_NEUTRAL_HIGH = 53       # Weak bear zone upper bound
 
 # VWAP deviation bands (%)
-VWAP_NEAR_BAND_PCT = 0.85       # Within 0.85% = "at VWAP", no strong signal
+VWAP_NEAR_BAND_PCT = 0.90       # Within 0.90% = "at VWAP", no strong signal
 VWAP_EXTENDED_PCT = 1.50        # > 1.5% from VWAP = extended, caution
 
 # Volume ratio thresholds (today cumulative / 20d avg daily)
