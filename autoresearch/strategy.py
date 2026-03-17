@@ -1,6 +1,6 @@
-# EXPERIMENT: tighten_rsi_neutral_zone
-# HYPOTHESIS: With more responsive RSI_PERIOD=10, the current neutral zone (RSI 45-55) is too wide and misses directional signals. Tightening to RSI 47-53 captures additional quality signals in the 45-47 (bull) and 53-55 (bear) ranges that currently get zero RSI contribution. This should increase trade frequency while maintaining signal quality, improving the fitness score without disrupting proven RSI bridge tiers and VWAP selectivity optimizations.
-# CHANGE: Narrow RSI neutral zone from 45-55 to 47-53 by adjusting RSI_NEUTRAL_LOW=47, RSI_NEUTRAL_HIGH=53
+# EXPERIMENT: macd_selectivity
+# HYPOTHESIS: Current MACD scoring gives 50-point contributions for mixed signals (histogram positive but MACD line negative, etc). These transitional cases add noise rather than signal quality. Following the proven pattern of more selective signals (VWAP threshold up, RSI neutral zone tightened), eliminating MACD mixed cases and only scoring when histogram and MACD line agree in direction should improve signal quality and risk-adjusted metrics without disrupting the proven RSI/VWAP optimizations.
+# CHANGE: Modify MACD scoring logic to only award points when macd_hist and macd_val agree in direction (both positive for bull, both negative for bear)
 
 """
 Pure-Python intraday day trading strategy — NO LLM calls.
@@ -19,9 +19,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Experiment metadata (updated by the evolution agent each iteration)
 # ---------------------------------------------------------------------------
-EXPERIMENT_NAME = "tighten_rsi_neutral_zone"
-EXPERIMENT_HYPOTHESIS = "With more responsive RSI_PERIOD=10, the current neutral zone (RSI 45-55) is too wide and misses directional signals. Tightening to RSI 47-53 captures additional quality signals in the 45-47 (bull) and 53-55 (bear) ranges that currently get zero RSI contribution. This should increase trade frequency while maintaining signal quality, improving the fitness score without disrupting proven RSI bridge tiers and VWAP selectivity optimizations."
-EXPERIMENT_CHANGE = "Narrow RSI neutral zone from 45-55 to 47-53 by adjusting RSI_NEUTRAL_LOW=47, RSI_NEUTRAL_HIGH=53"
+EXPERIMENT_NAME = "macd_selectivity"
+EXPERIMENT_HYPOTHESIS = "Current MACD scoring gives 50-point contributions for mixed signals (histogram positive but MACD line negative, etc). These transitional cases add noise rather than signal quality. Following the proven pattern of more selective signals (VWAP threshold up, RSI neutral zone tightened), eliminating MACD mixed cases and only scoring when histogram and MACD line agree in direction should improve signal quality and risk-adjusted metrics without disrupting the proven RSI/VWAP optimizations."
+EXPERIMENT_CHANGE = "Modify MACD scoring logic to only award points when macd_hist and macd_val agree in direction (both positive for bull, both negative for bear)"
 
 # ---------------------------------------------------------------------------
 # Tunable parameters — agent may change any of these
@@ -301,16 +301,13 @@ def _ticker_signal(
         else:
             bear_score += CONF_WEIGHT_VOLUME * vol_score
 
-    # MACD component
+    # MACD component - only score when histogram and line agree in direction
     if macd_hist is not None and macd_val is not None:
         if macd_hist > 0 and macd_val > 0:
             bull_score += CONF_WEIGHT_MACD * 80.0
-        elif macd_hist > 0 and macd_val <= 0:
-            bull_score += CONF_WEIGHT_MACD * 50.0   # improving but still negative
         elif macd_hist < 0 and macd_val < 0:
             bear_score += CONF_WEIGHT_MACD * 80.0
-        elif macd_hist < 0 and macd_val >= 0:
-            bear_score += CONF_WEIGHT_MACD * 50.0   # deteriorating
+        # Mixed cases (hist and line disagree) contribute no score - more selective
 
     # Regime alignment bonus
     regime = market_context.get("regime", "unknown")
