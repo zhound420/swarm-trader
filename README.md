@@ -31,7 +31,7 @@ Multi-agent AI trading system with **two autonomous modes** — swing trading an
 
 ## Dual-Mode Architecture
 
-The system operates in two clearly separated modes. Every script accepts `--mode swing|day` and reads mode-specific configuration from a single source of truth in `src/config.py`.
+The system operates in two clearly separated modes with **separate Alpaca accounts** — each mode trades its own book. Every script accepts `--mode swing|day`, routes to the correct account automatically, and reads mode-specific configuration from a single source of truth in `src/config.py`.
 
 ### Mode Selection
 
@@ -68,6 +68,36 @@ from src.config import set_mode
 set_mode("day", reason="FOMC day", updated_by="human", override=True, override_hours=4)
 
 # Or just edit trading_mode.json directly
+```
+
+### Multi-Account Routing
+
+Each trading mode operates on its own Alpaca paper trading account. This provides clean separation — swing positions don't interfere with day trades, each account has its own equity and P&L tracking, and risk limits are enforced per-account.
+
+| Mode | Account | Purpose |
+|---|---|---|
+| `swing` | Swing account | Multi-day holds, conservative risk |
+| `day` | DayTrading account | Intraday only, flattens EOD |
+
+Credentials are configured in `.env`:
+
+```bash
+# Day trading account (default)
+ALPACA_API_KEY=your_day_key
+ALPACA_API_SECRET=your_day_secret
+
+# Swing account (optional — falls back to day account if not set)
+ALPACA_SWING_API_KEY=your_swing_key
+ALPACA_SWING_API_SECRET=your_swing_secret
+```
+
+Account routing is handled by `src/accounts.py` — all API calls automatically use the correct credentials based on the `--mode` flag. If only one account is configured, both modes share it (backward compatible).
+
+```python
+from src.accounts import get_account_for_mode
+
+acct = get_account_for_mode("swing")  # returns AlpacaAccount with correct keys
+acct.headers  # ready-to-use API headers
 ```
 
 ### Swing Mode
@@ -306,9 +336,15 @@ cp .env.example .env
 Edit `.env`:
 
 ```bash
-# Required — Alpaca paper trading
+# Required — Alpaca paper trading (primary / day trading account)
 ALPACA_API_KEY=your_key_here
 ALPACA_API_SECRET=your_secret_here
+
+# Optional — Separate swing trading account
+# If set, swing mode trades on this account instead of the primary.
+# If not set, both modes share the primary account (backward compatible).
+ALPACA_SWING_API_KEY=your_swing_key_here
+ALPACA_SWING_API_SECRET=your_swing_secret_here
 
 # LLM provider (at least one)
 OPENAI_API_KEY=
@@ -563,6 +599,7 @@ swarm-trader/
 ├── .env.example               # Secrets template
 ├── src/
 │   ├── config.py              # MODES dict — single source of truth per mode
+│   ├── accounts.py            # Multi-account routing (day + swing Alpaca accounts)
 │   ├── tools/
 │   │   ├── api.py             # Hybrid dispatcher (paid → free fallback)
 │   │   ├── api_free.py        # Free data layer (SEC EDGAR + yfinance)
@@ -630,6 +667,7 @@ set_mode("day", reason="FOMC day", updated_by="human", override=True, override_h
 | `BLOCKED: Max 12 open positions` | Too many positions | Close something first or switch to day mode (8 max) |
 | `BLOCKED: leveraged ETF` | Trying to buy TQQQ in swing mode | Switch to day mode or remove the trade |
 | `ALPACA_API_KEY not set` | Missing `.env` | Copy `.env.example` to `.env` |
+| Swing trades hitting day account | `ALPACA_SWING_API_KEY` not set | Add swing keys to `.env` — falls back to primary if missing |
 | `insufficient qty` on sell | Shares locked by open orders | Cancel orders via Alpaca dashboard |
 | Scanner returns only core tickers | Market closed | Scanner works during market hours |
 | Risk manager rejects everything | Multiple rules violated | Run `risk_manager.py --status` to see what's wrong |
