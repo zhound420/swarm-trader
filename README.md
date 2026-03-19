@@ -76,19 +76,19 @@ Each trading mode operates on its own Alpaca paper trading account. This provide
 
 | Mode | Account | Purpose |
 |---|---|---|
-| `swing` | Swing account | Multi-day holds, conservative risk |
-| `day` | DayTrading account | Intraday only, flattens EOD |
+| `swing` | Primary account | Multi-day holds, conservative risk |
+| `day` | Day trading account | Intraday only, flattens EOD |
 
 Credentials are configured in `.env`:
 
 ```bash
-# Day trading account (default)
-ALPACA_API_KEY=your_day_key
-ALPACA_API_SECRET=your_day_secret
+# Primary / Swing account (required)
+ALPACA_API_KEY=your_swing_key
+ALPACA_API_SECRET=your_swing_secret
 
-# Swing account (optional — falls back to day account if not set)
-ALPACA_SWING_API_KEY=your_swing_key
-ALPACA_SWING_API_SECRET=your_swing_secret
+# Day trading account (optional — falls back to primary if not set)
+ALPACA_DAY_API_KEY=your_day_key
+ALPACA_DAY_API_SECRET=your_day_secret
 ```
 
 Account routing is handled by `src/accounts.py` — all API calls automatically use the correct credentials based on the `--mode` flag. If only one account is configured, both modes share it (backward compatible).
@@ -99,6 +99,17 @@ from src.accounts import get_account_for_mode
 acct = get_account_for_mode("swing")  # returns AlpacaAccount with correct keys
 acct.headers  # ready-to-use API headers
 ```
+
+### Recommended: Separate Trading Agents
+
+For best results, run a **dedicated agent per account** rather than one agent switching modes. Each agent develops its own context, memory, and trading style:
+
+| Agent | Role | Account | Schedule |
+|---|---|---|---|
+| Swing agent | Multi-day positions, sector rotation | Primary | 3 crons: 9:30 AM, 12 PM, 3 PM |
+| Day agent | Intraday scalps, flat by close | Day trading | 3 crons: 6:30 AM, 9:30 AM, 12:45 PM |
+
+This provides complete isolation — separate P&L, separate risk management, no cross-contamination between strategies. See [Automation with OpenClaw](#automation-with-openclaw) for cron setup.
 
 ### Swing Mode
 
@@ -336,15 +347,14 @@ cp .env.example .env
 Edit `.env`:
 
 ```bash
-# Required — Alpaca paper trading (primary / day trading account)
+# Required — Alpaca paper trading (primary / swing account)
 ALPACA_API_KEY=your_key_here
 ALPACA_API_SECRET=your_secret_here
 
-# Optional — Separate swing trading account
-# If set, swing mode trades on this account instead of the primary.
-# If not set, both modes share the primary account (backward compatible).
-ALPACA_SWING_API_KEY=your_swing_key_here
-ALPACA_SWING_API_SECRET=your_swing_secret_here
+# Optional — Separate day trading account
+# If set, day mode trades on this account. If not, both modes share the primary.
+ALPACA_DAY_API_KEY=your_day_key_here
+ALPACA_DAY_API_SECRET=your_day_secret_here
 
 # LLM provider (at least one)
 OPENAI_API_KEY=
@@ -465,56 +475,108 @@ Create your own — see `src/agents/mordecai.py` as a template. Register in `src
 
 ## Automation with OpenClaw
 
-The system runs fully autonomous via [OpenClaw](https://github.com/openclaw/openclaw) cron jobs. Three crons cover the full trading day:
+The system runs fully autonomous via [OpenClaw](https://github.com/openclaw/openclaw) cron jobs. The recommended setup uses **two dedicated agents** — one for swing, one for day trading — each with their own cron schedule and account.
 
-| Time (PT) | Job | Purpose |
-|---|---|---|
-| 9:30 AM | `swarm-morning` | Health check, run stops, pick mode, take snapshot |
-| 12:00 PM | `swarm-midday` | Analysis, propose and execute trades |
-| 3:00 PM | `swarm-afternoon` | EOD review, final stops, performance report |
+### Two-Agent Setup (Recommended)
 
-### Cron Setup
+| Time (PT) | Agent | Job | Purpose |
+|---|---|---|---|
+| 6:30 AM | Day trader | `day-morning` | Pre-market scan, VIX check, identify targets |
+| 9:30 AM | Swing trader | `swing-morning` | Health check, run stops, take snapshot |
+| 9:30 AM | Day trader | `day-midday` | Position check, afternoon trades |
+| 12:00 PM | Swing trader | `swing-midday` | Analysis, propose and execute trades |
+| 12:45 PM | Day trader | `day-flatten` | **Mandatory flatten** — close all positions, EOD report |
+| 3:00 PM | Swing trader | `swing-afternoon` | EOD review, final stops, performance report |
+
+### Swing Agent Crons
 
 ```bash
 # Morning health check (9:30 AM Mon-Fri)
-openclaw cron add --name swarm-morning \
-  --cron "30 9 * * 1-5" \
-  --agent my-agent \
+openclaw cron add --name swing-morning \
+  --cron "30 9 * * 1-5" --tz "America/Los_Angeles" --exact \
+  --agent swing-agent \
   --model "your-model" \
   --session isolated \
-  --announce --channel telegram \
-  --message 'Morning health check. 
-    1. Read trading_mode.json and resolve mode (check VIX if auto)
-    2. Run: poetry run python portfolio_monitor.py --mode <chosen>
-    3. Run: poetry run python risk_manager.py --status --mode <chosen>
-    4. Run: poetry run python performance_tracker_v2.py --snapshot --force
-    5. Brief report: mode, equity, stops triggered, SPY comparison.'
+  --announce --channel telegram --to YOUR_CHAT_ID \
+  --best-effort-deliver \
+  --message 'Morning health check.
+    1. Run: poetry run python portfolio_monitor.py --mode swing
+    2. Run: poetry run python risk_manager.py --status --mode swing
+    3. Run: poetry run python performance_tracker_v2.py --snapshot --force
+    4. Brief report: equity, stops triggered, SPY comparison.'
 
 # Midday analysis (12:00 PM Mon-Fri)
-openclaw cron add --name swarm-midday \
-  --cron "0 12 * * 1-5" \
-  --agent my-agent \
+openclaw cron add --name swing-midday \
+  --cron "0 12 * * 1-5" --tz "America/Los_Angeles" --exact \
+  --agent swing-agent \
   --model "your-model" \
   --session isolated \
-  --announce --channel telegram \
-  --message 'Midday analysis. Read trading_mode.json for active mode.
-    1. Gather data: poetry run python gather_data.py --mode <active>
-    2. Analyze universe stocks
-    3. Execute trades: echo trades | poetry run python execute_trades.py --mode <active>
+  --announce --channel telegram --to YOUR_CHAT_ID \
+  --best-effort-deliver \
+  --message 'Midday analysis.
+    1. Gather data: poetry run python gather_data.py
+    2. Analyze universe stocks for swing mode
+    3. Execute: echo trades | poetry run python execute_trades.py --mode swing
     4. Report: trades executed, rejections from risk manager.'
 
-# Afternoon review (3:00 PM Mon-Fri)  
-openclaw cron add --name swarm-afternoon \
-  --cron "0 15 * * 1-5" \
-  --agent my-agent \
+# Afternoon review (3:00 PM Mon-Fri)
+openclaw cron add --name swing-afternoon \
+  --cron "0 15 * * 1-5" --tz "America/Los_Angeles" --exact \
+  --agent swing-agent \
   --model "your-model" \
   --session isolated \
-  --announce --channel telegram \
+  --announce --channel telegram --to YOUR_CHAT_ID \
+  --best-effort-deliver \
   --message 'Afternoon review.
-    1. Run: poetry run python portfolio_monitor.py --mode <active>
-       (In day mode, this auto-flattens after 3:45 PM ET)
+    1. Run: poetry run python portfolio_monitor.py --mode swing
     2. Run: poetry run python performance_tracker_v2.py --snapshot --force
     3. EOD report: daily P&L, alpha vs SPY, overnight positions.'
+```
+
+### Day Trading Agent Crons
+
+```bash
+# Pre-market scan (6:30 AM Mon-Fri)
+openclaw cron add --name day-morning \
+  --cron "30 6 * * 1-5" --tz "America/Los_Angeles" --exact \
+  --agent day-agent \
+  --model "your-model" \
+  --session isolated \
+  --announce --channel telegram --to YOUR_CHAT_ID \
+  --best-effort-deliver \
+  --message 'Pre-market scan.
+    1. Check VIX and economic calendar
+    2. Run: poetry run python scan_market.py --max 25 --json
+    3. Run: poetry run python gather_data.py --mode day
+    4. Report: VIX level, top targets with entry zones, caution flags.'
+
+# Midday position check (9:30 AM Mon-Fri)
+openclaw cron add --name day-midday \
+  --cron "30 9 * * 1-5" --tz "America/Los_Angeles" --exact \
+  --agent day-agent \
+  --model "your-model" \
+  --session isolated \
+  --announce --channel telegram --to YOUR_CHAT_ID \
+  --best-effort-deliver \
+  --message 'Midday check.
+    1. Run: poetry run python portfolio_monitor.py --mode day
+    2. Cut dead money, look for afternoon setups
+    3. Execute if setups confirm: echo trades | poetry run python execute_trades.py --mode day
+    4. Report: open positions + P&L, stops triggered.'
+
+# Mandatory EOD flatten (12:45 PM Mon-Fri)
+openclaw cron add --name day-flatten \
+  --cron "45 12 * * 1-5" --tz "America/Los_Angeles" --exact \
+  --agent day-agent \
+  --model "your-model" \
+  --session isolated \
+  --announce --channel telegram --to YOUR_CHAT_ID \
+  --best-effort-deliver \
+  --message 'FLATTEN — 15 min to close.
+    1. Run: poetry run python execute_trades.py --mode day --flatten
+    2. Verify flat: poetry run python portfolio_monitor.py --mode day
+    3. Run: poetry run python performance_tracker_v2.py --snapshot --force
+    4. EOD report: daily P&L, win rate, best/worst trade, alpha vs SPY.'
 ```
 
 **AutoResearch crons** (optional, after market close):
@@ -667,7 +729,7 @@ set_mode("day", reason="FOMC day", updated_by="human", override=True, override_h
 | `BLOCKED: Max 12 open positions` | Too many positions | Close something first or switch to day mode (8 max) |
 | `BLOCKED: leveraged ETF` | Trying to buy TQQQ in swing mode | Switch to day mode or remove the trade |
 | `ALPACA_API_KEY not set` | Missing `.env` | Copy `.env.example` to `.env` |
-| Swing trades hitting day account | `ALPACA_SWING_API_KEY` not set | Add swing keys to `.env` — falls back to primary if missing |
+| Day trades hitting swing account | `ALPACA_DAY_API_KEY` not set | Add day trading keys to `.env` — falls back to primary if missing |
 | `insufficient qty` on sell | Shares locked by open orders | Cancel orders via Alpaca dashboard |
 | Scanner returns only core tickers | Market closed | Scanner works during market hours |
 | Risk manager rejects everything | Multiple rules violated | Run `risk_manager.py --status` to see what's wrong |

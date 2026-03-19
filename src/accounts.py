@@ -2,12 +2,14 @@
 Account routing for multi-account Alpaca setup.
 
 Two accounts:
-  - "day" (DayTrading): PA3JDEMM789Z — intraday trades, flattens EOD
-  - "swing" (Swing):    PA3NVVU2WEOH — multi-day holds
+  - "swing" (Primary):     ALPACA_API_KEY / ALPACA_API_SECRET — multi-day holds
+  - "day"   (DayTrading):  ALPACA_DAY_API_KEY / ALPACA_DAY_API_SECRET — intraday, flattens EOD
 
 Credentials are selected based on trading mode. All API helpers accept
-an optional `account` parameter; if omitted, the current trading mode
-determines which account to use.
+an optional `mode` parameter; if omitted, the current trading mode
+(from trading_mode.json) determines which account to use.
+
+If only the primary account is configured, both modes share it (backward compatible).
 """
 
 import os
