@@ -136,7 +136,7 @@ Examples:
     parser.add_argument("--telegram", action="store_true",
                         help="Format output for Telegram (no markdown tables)")
     parser.add_argument("--model", type=str, default=None,
-                        help="Ollama model to use (default: inherited from openclaw.json)")
+                        help="Model to use (default: LLM_MODEL env var or openclaw.json)")
     parser.add_argument("--analysts", type=str,
                         default="warren_buffett,michael_burry,cathie_wood,apex,autoresearch,fundamentals_analyst,technical_analyst",
                         help="Comma-separated list of analysts to use")
@@ -149,7 +149,7 @@ Examples:
     mode = resolve_mode(cli_mode=args.mode)
     mode_config = get_mode_config(mode)
     if args.model is None:
-        args.model = _resolve_openclaw_model()
+        args.model = os.getenv("LLM_MODEL") or _resolve_openclaw_model()
 
     selected_analysts = [a.strip() for a in args.analysts.split(",") if a.strip()]
     specific_tickers = [t.strip() for t in args.tickers.split(",")] if args.tickers else None
@@ -177,8 +177,9 @@ Examples:
             return 1
 
         print(f"🔍 Analyzing {len(tickers_to_analyze)} ticker(s): {', '.join(tickers_to_analyze)}")
+        model_provider = os.getenv("LLM_PROVIDER", "Ollama")
         print(f"🤖 Using analysts: {', '.join(selected_analysts)}")
-        print(f"🧠 Model: {args.model} (Ollama via OpenClaw)")
+        print(f"🧠 Model: {args.model} ({model_provider})")
         print(f"💼 Mode: {'LIVE TRADING' if args.execute else 'DRY RUN'}")
         print()
 
@@ -190,7 +191,7 @@ Examples:
             show_reasoning=args.show_reasoning,
             selected_analysts=selected_analysts,
             model_name=args.model,
-            model_provider="Ollama",
+            model_provider=model_provider,
         )
 
         decisions = result.get("decisions", {})
